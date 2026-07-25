@@ -14,7 +14,7 @@ GET {{host}}/categories/plastic
 ### Поиск по справочнику
 GET {{host}}/guide/search?q=бутылка
 
-### Сканирование фото
+### Сканирование фото — положите рядом любое photo.jpg
 POST {{host}}/scan
 X-Device-Id: {{device}}
 Content-Type: multipart/form-data; boundary=BinGoBoundary
@@ -23,7 +23,7 @@ Content-Type: multipart/form-data; boundary=BinGoBoundary
 Content-Disposition: form-data; name="file"; filename="photo.jpg"
 Content-Type: image/jpeg
 
-< ./ЭкоСканер_ план разработки (1)/uploads/IMG_695A37C75342-1.jpeg
+< ./photo.jpg
 --BinGoBoundary--
 
 ### Ручной выбор категории (когда распознавание не сработало)
