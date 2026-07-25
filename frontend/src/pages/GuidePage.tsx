@@ -320,20 +320,6 @@ export function GuidePage() {
                         loading="lazy"
                       />
                     )}
-                    {picked && (
-                      <div className="guide__preview-card">
-                        <span className="guide__preview-name">{picked.name}</span>
-                        <span className="guide__preview-note">{picked.note}</span>
-                        <span
-                          className="guide__preview-verdict"
-                          style={{
-                            color: picked.isAccepted ? "var(--accent)" : "var(--danger)",
-                          }}
-                        >
-                          {picked.isAccepted ? "Принимают" : "Не принимают"}
-                        </span>
-                      </div>
-                    )}
                   </div>
                 </div>
               </div>

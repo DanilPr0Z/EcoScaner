@@ -93,23 +93,6 @@ export function CategoryModal({ category, onClose }: Props) {
             {category.imageUrl && (
               <img className="modal__photo" src={category.imageUrl} alt={category.name} />
             )}
-            <div className="modal__side-items">
-              {category.items.slice(0, 6).map((item) => (
-                <span className="modal__side-item" key={item.name}>
-                  <span
-                    className="modal__side-mark"
-                    style={{
-                      background: item.isAccepted ? category.color : "transparent",
-                      border: item.isAccepted ? "0" : "1.5px solid rgba(49,87,44,.3)",
-                      color: item.isAccepted ? inkOn(category.color) : "#7C8A73",
-                    }}
-                  >
-                    {item.isAccepted ? "✓" : "×"}
-                  </span>
-                  {item.name}
-                </span>
-              ))}
-            </div>
             <div className="modal__avoid">
               <span>{category.avoid}</span>
             </div>

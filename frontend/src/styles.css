@@ -1900,34 +1900,6 @@ a:hover {
   padding: 40px;
 }
 
-.modal__side-items {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  width: 100%;
-}
-
-.modal__side-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 15px;
-  line-height: 1.4;
-  color: var(--ink-body);
-}
-
-.modal__side-mark {
-  flex: none;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 11px;
-  font-weight: 800;
-}
-
 .modal__avoid {
   position: absolute;
   left: 0;
@@ -2448,30 +2420,10 @@ a:hover {
   object-fit: cover;
 }
 
-.guide__preview-card {
-  position: relative;
-  background: rgba(250, 249, 246, 0.94);
-  backdrop-filter: blur(4px);
-  border-radius: 16px;
-  padding: 18px 20px;
-  margin: 16px;
-  box-shadow: 0 16px 36px -22px rgba(18, 34, 16, 0.7);
-}
-
 .modal__photo {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
-}
-
-/* Список предметов и текст лежат поверх фото — им нужен свой слой и подложка,
-   иначе на пёстром снимке их не прочитать. */
-.modal__side-items {
-  position: relative;
-  background: rgba(250, 249, 246, 0.92);
-  backdrop-filter: blur(4px);
-  border-radius: 18px;
-  padding: 18px 20px;
 }
