@@ -1,10 +1,24 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Category, CategoryItem
 from app.schemas.category import GuideSearchCategory, GuideSearchItem
+
+#: Где лежат картинки справочника. Готовятся prediction/build_guide_images.py.
+GUIDE_IMAGES = Path(__file__).resolve().parents[2] / "app" / "static" / "guide"
+
+
+def image_url(category_id: str) -> str | None:
+    """Ссылка на картинку категории — или None, если файла нет.
+
+    Проверяем наличие файла, а не подставляем путь вслепую: иначе интерфейс
+    будет показывать битые картинки на машине, где скрипт не запускали.
+    """
+    return f"/static/guide/{category_id}.jpg" if (GUIDE_IMAGES / f"{category_id}.jpg").exists() else None
 from app.services.text_search import score_text, tokenize
 
 #: Поля предмета и их вес. Совпадение в названии важнее, чем в примечании,

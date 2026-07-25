@@ -22,6 +22,8 @@ class CategoryBase(CamelModel):
     decay: str
     becomes: str
     avoid: str
+    #: Картинка категории. None, если файла нет — интерфейс просто её не покажет.
+    image_url: str | None = None
 
 
 class CategoryOut(CategoryBase):

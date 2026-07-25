@@ -307,17 +307,21 @@ export function GuidePage() {
                 <div className="guide__preview-wrap">
                   <div
                     className="guide__preview"
-                    style={
-                      picked
-                        ? {
-                            background: withAlpha(current.color, 0.12),
-                            borderColor: withAlpha(current.color, 0.25),
-                          }
-                        : undefined
-                    }
+                    style={{
+                      background: withAlpha(current.color, 0.12),
+                      borderColor: withAlpha(current.color, 0.25),
+                    }}
                   >
+                    {current.imageUrl && (
+                      <img
+                        className="guide__preview-photo"
+                        src={current.imageUrl}
+                        alt={current.name}
+                        loading="lazy"
+                      />
+                    )}
                     {picked && (
-                      <div>
+                      <div className="guide__preview-card">
                         <span className="guide__preview-name">{picked.name}</span>
                         <span className="guide__preview-note">{picked.note}</span>
                         <span

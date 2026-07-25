@@ -9,11 +9,18 @@ from app.services import guide
 router = APIRouter(tags=["guide"])
 
 
+def _with_image(category) -> CategoryOut:  # noqa: ANN001
+    """Категория плюс ссылка на её картинку."""
+    out = CategoryOut.model_validate(category)
+    out.image_url = guide.image_url(category.id)
+    return out
+
+
 @router.get("/categories", response_model=list[CategoryOut])
 async def list_categories(session: SessionDep) -> list[CategoryOut]:
     """Весь справочник: 7 категорий с предметами. Используется главной, справочником и модалкой."""
     categories = await guide.list_categories(session)
-    return [CategoryOut.model_validate(c) for c in categories]
+    return [_with_image(c) for c in categories]
 
 
 @router.get("/categories/{category_id}", response_model=CategoryOut)
@@ -24,7 +31,7 @@ async def get_category(category_id: str, session: SessionDep) -> CategoryOut:
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Категория {category_id!r} не найдена.",
         )
-    return CategoryOut.model_validate(category)
+    return _with_image(category)
 
 
 @router.get("/guide/search", response_model=GuideSearchResult)

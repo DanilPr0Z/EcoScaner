@@ -90,6 +90,9 @@ export function CategoryModal({ category, onClose }: Props) {
           </div>
 
           <div className="modal__side" style={{ background: withAlpha(category.color, 0.12) }}>
+            {category.imageUrl && (
+              <img className="modal__photo" src={category.imageUrl} alt={category.name} />
+            )}
             <div className="modal__side-items">
               {category.items.slice(0, 6).map((item) => (
                 <span className="modal__side-item" key={item.name}>

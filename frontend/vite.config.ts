@@ -6,8 +6,13 @@ export default defineConfig({
   server: {
     port: 5173,
     // Запросы /api уходят на FastAPI — в разработке не нужен ни CORS, ни VITE_API_URL.
+    // /static — картинки справочника, их тоже раздаёт бэкенд.
     proxy: {
       "/api": {
+        target: "http://127.0.0.1:8000",
+        changeOrigin: true,
+      },
+      "/static": {
         target: "http://127.0.0.1:8000",
         changeOrigin: true,
       },

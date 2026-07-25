@@ -34,6 +34,8 @@ export interface CategoryBase {
   decay: string;
   becomes: string;
   avoid: string;
+  /** Картинка категории. null, если её не подготовили. */
+  imageUrl?: string | null;
 }
 
 export interface Category extends CategoryBase {
