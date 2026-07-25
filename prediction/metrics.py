@@ -63,7 +63,11 @@ def build_metrics(
     best = max(history, key=lambda point: point.get("top1", 0.0))
 
     return {
-        "dataset": "RealWaste",
+        # Источник давно не один: к RealWaste добавились уличные снимки TACO
+        # и бытовые из Open Images — ровно те домены, в которых снимает
+        # пользователь. Писать «RealWaste» значит показывать посетителю
+        # неправду о том, на чём модель училась.
+        "dataset": "RealWaste + TACO + Open Images",
         "model": model or _read_model_name(run_dir),
         "trainedAt": datetime.fromtimestamp(results_csv.stat().st_mtime, UTC).isoformat(),
         "epochs": len(history),
