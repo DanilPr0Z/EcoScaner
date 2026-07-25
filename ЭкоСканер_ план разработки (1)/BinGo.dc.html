@@ -1,0 +1,1248 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.1/dist/mobilenet.min.js"></script>
+<script src="./image-slot.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #FAF9F6; color: #31572C; font-family: Manrope, sans-serif; -webkit-font-smoothing: antialiased; }
+  a { color: #40916C; text-decoration: none; }
+  a:hover { color: #90A955; }
+  h1, h2, h3, p, span { overflow-wrap: break-word; }
+  button { font-family: Manrope, sans-serif; cursor: pointer; }
+  input { font-family: Manrope, sans-serif; }
+  @keyframes ecoSpin { to { transform: rotate(360deg); } }
+  @keyframes ecoPulse { 0%,100% { opacity: .35; } 50% { opacity: 1; } }
+  @keyframes ecoUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+  @keyframes ecoScanline { 0% { top: 0; } 100% { top: 100%; } }
+</style>
+</helmet>
+
+<div style="min-height:100vh;display:flex;flex-direction:column;background:#FAF9F6">
+
+  <header style="position:sticky;top:0;z-index:50;background:rgba(246,244,237,.92);backdrop-filter:blur(12px);border-bottom:1px solid #DDE2CE">
+    <div style="max-width:1240px;margin:0 auto;padding:14px 24px;display:flex;align-items:center;gap:16px;row-gap:10px;flex-wrap:wrap;justify-content:space-between">
+      <div style="display:flex;align-items:center;gap:16px">
+        <button onClick="{{ goHome }}" style="display:flex;align-items:center;gap:12px;background:none;border:0;padding:0">
+          <span style="position:relative;width:32px;height:32px;display:block;flex:none">
+            <span style="position:absolute;left:0;top:0;width:11px;height:11px;border-top:2px solid #40916C;border-left:2px solid #40916C;border-top-left-radius:5px"></span>
+            <span style="position:absolute;right:0;top:0;width:11px;height:11px;border-top:2px solid #40916C;border-right:2px solid #40916C;border-top-right-radius:5px"></span>
+            <span style="position:absolute;left:0;bottom:0;width:11px;height:11px;border-bottom:2px solid #40916C;border-left:2px solid #40916C;border-bottom-left-radius:5px"></span>
+            <span style="position:absolute;right:0;bottom:0;width:11px;height:11px;border-bottom:2px solid #40916C;border-right:2px solid #40916C;border-bottom-right-radius:5px"></span>
+            <span style="position:absolute;inset:9px;background:#90A955;border-radius:50% 50% 50% 4px;transform:rotate(-12deg)"></span>
+          </span>
+          <span style="font-family:Unbounded,sans-serif;font-weight:800;font-size:19px;letter-spacing:-.02em;color:#31572C">BinGo</span>
+        </button>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <nav style="display:flex;gap:4px;flex-wrap:wrap">
+          <button onClick="{{ goScan }}" style="{{ navScan }}">Сканер</button>
+          <button onClick="{{ goGuide }}" style="{{ navGuide }}">Справочник</button>
+          <button onClick="{{ goProfile }}" style="{{ navProfile }}">Профиль</button>
+        </nav>
+        <button onClick="{{ goScan }}" style="background:#40916C;color:#FAF9F6;border:0;border-radius:999px;padding:11px 20px;font-size:14px;font-weight:700;transition:background .25s ease,color .25s ease" style-hover="background:#90A955;color:#213A1E">Сканировать</button>
+      </div>
+    </div>
+  </header>
+
+  <main style="flex:1">
+
+    <sc-if value="{{ isHome }}" hint-placeholder-val="{{ true }}">
+      <section style="max-width:1240px;margin:0 auto;padding:clamp(36px,6vw,72px) clamp(16px,4vw,24px) 40px">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(340px,100%),1fr));gap:clamp(32px,5vw,56px);align-items:center">
+          <div>
+            <h1 style="font-family:Unbounded,sans-serif;font-weight:800;font-size:clamp(34px,4.6vw,60px);line-height:1.04;letter-spacing:-.035em;margin:0;overflow-wrap:break-word;hyphens:auto;max-width:14ch">Сними мусор — узнай, в какой бак</h1>
+            <p style="font-size:19px;line-height:1.55;color:#4C5C48;max-width:520px;margin:22px 0 0;text-wrap:pretty">Нейросеть определяет предмет на фото, относит его к одному из пяти типов отходов и объясняет, как подготовить его к переработке.</p>
+            <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:34px">
+              <button onClick="{{ goScan }}" style="background:#40916C;color:#FAF9F6;border:0;border-radius:999px;padding:17px 32px;font-size:16px;font-weight:700;transition:background .25s ease,color .25s ease" style-hover="background:#90A955;color:#213A1E">Сканировать</button>
+              <button onClick="{{ goGuide }}" style="background:transparent;color:#31572C;border:1.5px solid #31572C;border-radius:999px;padding:17px 32px;font-size:16px;font-weight:700;transition:background .25s ease,color .25s ease" style-hover="background:#31572C;color:#FAF9F6">Открыть справочник</button>
+            </div>
+          </div>
+
+          <div style="position:relative;background:#FFFFFF;border:1px solid #DDE2CE;border-radius:26px;padding:22px;box-shadow:0 24px 60px -30px rgba(49,87,44,.35)">
+            <div style="position:relative;overflow:hidden;aspect-ratio:4/3;border-radius:16px;background:#E6E9DA;display:flex;align-items:center;justify-content:center">
+              <span style="position:absolute;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,#90A955,transparent);animation:ecoScanline 2.6s ease-in-out infinite alternate"></span>
+              <span style="position:absolute;left:22%;top:18%;width:44%;height:58%;border:2px solid #E8A317;border-radius:8px"></span>
+              <span style="position:absolute;left:22%;top:calc(18% - 26px);background:#E8A317;color:#31572C;font-size:12px;font-weight:700;padding:4px 9px;border-radius:6px">пластик · 0.94</span>
+              <span style="font-size:13px;color:#8E9B84;font-weight:600">кадр с камеры</span>
+            </div>
+            <div style="display:flex;gap:14px;margin-top:18px;padding-top:16px;border-top:1px dashed #DDE2CE">
+              <span style="font-size:13px;color:#7C8A73;font-weight:600">Бак: жёлтый</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section style="max-width:1240px;margin:0 auto;padding:clamp(48px,8vw,96px) clamp(16px,4vw,24px) 0">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(250px,100%),1fr));gap:0;border-top:1px solid #D3DAC2">
+          <div style="padding:30px 32px 34px 0">
+            <span style="font-family:Unbounded,sans-serif;font-weight:800;font-size:52px;letter-spacing:-.04em;color:transparent;-webkit-text-stroke:1.5px #BCC7AE;display:block;line-height:1">01</span>
+            <h3 style="font-family:Unbounded,sans-serif;font-weight:600;font-size:19px;letter-spacing:-.02em;margin:18px 0 10px">Снимаешь предмет</h3>
+            <p style="margin:0;font-size:15px;line-height:1.6;color:#4C5C48;max-width:34ch">Файл, галерея или камера телефона прямо в браузере.</p>
+          </div>
+          <div style="padding:30px 32px 34px;border-left:1px solid #D3DAC2">
+            <span style="font-family:Unbounded,sans-serif;font-weight:800;font-size:52px;letter-spacing:-.04em;color:transparent;-webkit-text-stroke:1.5px #BCC7AE;display:block;line-height:1">02</span>
+            <h3 style="font-family:Unbounded,sans-serif;font-weight:600;font-size:19px;letter-spacing:-.02em;margin:18px 0 10px">Нейросеть находит его</h3>
+            <p style="margin:0;font-size:15px;line-height:1.6;color:#4C5C48;max-width:34ch">Детектор выделяет объект рамкой, классификатор уточняет материал.</p>
+          </div>
+          <div style="padding:30px 0 34px 32px;border-left:1px solid #D3DAC2">
+            <span style="font-family:Unbounded,sans-serif;font-weight:800;font-size:52px;letter-spacing:-.04em;color:transparent;-webkit-text-stroke:1.5px #BCC7AE;display:block;line-height:1">03</span>
+            <h3 style="font-family:Unbounded,sans-serif;font-weight:600;font-size:19px;letter-spacing:-.02em;margin:18px 0 10px">Видишь свой бак</h3>
+            <p style="margin:0;font-size:15px;line-height:1.6;color:#4C5C48;max-width:34ch">Цвет контейнера, подготовка отхода и срок разложения.</p>
+          </div>
+        </div>
+      </section>
+
+      <section style="max-width:1240px;margin:0 auto;padding:clamp(48px,7vw,86px) clamp(16px,4vw,24px) clamp(56px,8vw,96px)">
+        <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap;margin-bottom:8px">
+          <h2 style="font-family:Unbounded,sans-serif;font-weight:600;font-size:clamp(26px,3vw,38px);letter-spacing:-.03em;margin:0;max-width:22ch">Пять баков, которые нужно различать</h2>
+          <span style="font-size:14px;color:#7C8A73;font-weight:600">нажмите строку — откроется справочник</span>
+        </div>
+        <div style="display:flex;flex-direction:column">
+          <sc-for list="{{ cats }}" as="cat" hint-placeholder-count="5">
+            <button onClick="{{ cat.open }}" onMouseEnter="{{ cat.hoverOn }}" onMouseLeave="{{ cat.hoverOff }}" style="{{ cat.rowStyle }}">
+              <span style="{{ cat.barStyle }}"></span>
+              <span style="font-family:Unbounded,sans-serif;font-weight:600;font-size:clamp(22px,2.4vw,30px);letter-spacing:-.03em;min-width:150px;text-align:left">{{ cat.name }}</span>
+              <span style="flex:1;min-width:180px;font-size:15px;line-height:1.5;color:#4C5C48;text-align:left">{{ cat.examples }}</span>
+              <span style="font-size:14px;font-weight:700;color:#4C5C48;white-space:nowrap">{{ cat.bin }}</span>
+              <span style="{{ cat.arrowStyle }}">→</span>
+            </button>
+          </sc-for>
+        </div>
+      </section>
+
+      <section style="background:#31572C;color:#FAF9F6">
+        <div style="max-width:1240px;margin:0 auto;padding:clamp(44px,7vw,76px) clamp(16px,4vw,24px);display:grid;grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));gap:40px;align-items:end">
+          <p style="font-family:Unbounded,sans-serif;font-weight:600;font-size:clamp(24px,2.8vw,34px);line-height:1.25;letter-spacing:-.03em;margin:0;max-width:22ch">Верно отсортированный мусор перестаёт быть мусором.</p>
+          <div style="display:flex;gap:48px;flex-wrap:wrap">
+            <span style="display:block">
+              <span style="display:block;font-family:Unbounded,sans-serif;font-weight:800;font-size:44px;letter-spacing:-.04em;color:#ECF39E;line-height:1">60%</span>
+              <span style="display:block;font-size:14px;color:#CBD8B4;margin-top:10px;max-width:20ch;line-height:1.5">бытовых отходов можно переработать при верной сортировке</span>
+            </span>
+            <span style="display:block">
+              <span style="display:block;font-family:Unbounded,sans-serif;font-weight:800;font-size:44px;letter-spacing:-.04em;color:#ECF39E;line-height:1">400</span>
+              <span style="display:block;font-size:14px;color:#CBD8B4;margin-top:10px;max-width:20ch;line-height:1.5">лет пластиковая бутылка лежит в земле</span>
+            </span>
+          </div>
+        </div>
+      </section>
+    </sc-if>
+
+    <sc-if value="{{ isScan }}" hint-placeholder-val="{{ true }}">
+      <section style="max-width:1240px;margin:0 auto;padding:clamp(28px,4vw,44px) clamp(16px,4vw,24px) clamp(48px,7vw,72px)">
+        <h1 style="font-family:Unbounded,sans-serif;font-weight:800;font-size:clamp(30px,3.8vw,44px);letter-spacing:-.03em;margin:0">Сканер отходов</h1>
+        <p style="font-size:17px;color:#4C5C48;margin:12px 0 32px;max-width:620px;line-height:1.55">Загрузите фото одного предмета — так распознавание точнее. Первое сканирование чуть дольше: модель загружается один раз.</p>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(330px,100%),1fr));gap:24px;align-items:start">
+
+          <div style="background:#FFFFFF;border:1px solid #DDE2CE;border-radius:24px;padding:20px">
+            <div onDragOver="{{ onDragOver }}" onDragLeave="{{ onDragLeave }}" onDrop="{{ onDrop }}" onClick="{{ pickFile }}" style="{{ dropStyle }}">
+              <sc-if value="{{ showEmpty }}" hint-placeholder-val="{{ true }}">
+                <div style="text-align:center;padding:36px 20px;pointer-events:none">
+                  <span style="display:block;width:52px;height:52px;margin:0 auto 18px;border:2px dashed #AEBAA2;border-radius:14px"></span>
+                  <span style="display:block;font-family:Unbounded,sans-serif;font-weight:600;font-size:18px;letter-spacing:-.02em">Перетащите фото сюда</span>
+                  <span style="display:block;font-size:14px;color:#7C8A73;margin-top:8px">или нажмите, чтобы выбрать файл · JPG, PNG, WEBP</span>
+                </div>
+              </sc-if>
+              <sc-if value="{{ hasImage }}" hint-placeholder-val="{{ false }}">
+                <div style="position:relative;width:100%;line-height:0">
+                  <img ref="{{ imgRef }}" onLoad="{{ onImgLoad }}" alt="Загруженное фото" style="width:100%;height:auto;display:block;border-radius:14px" />
+                  <sc-for list="{{ boxes }}" as="box" hint-placeholder-count="0">
+                    <div style="{{ box.style }}">
+                      <span style="{{ box.tagStyle }}">{{ box.label }}</span>
+                    </div>
+                  </sc-for>
+                  <sc-if value="{{ busy }}" hint-placeholder-val="{{ false }}">
+                    <div style="position:absolute;inset:0;background:rgba(49,87,44,.55);border-radius:14px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px">
+                      <span style="width:34px;height:34px;border:3px solid rgba(255,255,255,.25);border-top-color:#ECF39E;border-radius:50%;animation:ecoSpin .8s linear infinite"></span>
+                      <span style="color:#FAF9F6;font-size:14px;font-weight:600;line-height:1.3;text-align:center;padding:0 20px">{{ busyText }}</span>
+                    </div>
+                  </sc-if>
+                </div>
+              </sc-if>
+              <sc-if value="{{ cameraOn }}" hint-placeholder-val="{{ false }}">
+                <div style="position:relative;width:100%;line-height:0">
+                  <video ref="{{ videoRef }}" autoPlay="{{ true }}" playsInline="{{ true }}" muted="{{ true }}" style="width:100%;height:auto;display:block;border-radius:14px;background:#31572C"></video>
+                </div>
+              </sc-if>
+            </div>
+
+            <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">
+              <button onClick="{{ pickFile }}" style="background:#40916C;color:#FAF9F6;border:0;border-radius:999px;padding:13px 22px;font-size:14px;font-weight:700" style-hover="background:#90A955;color:#213A1E">Выбрать файл</button>
+              <button onClick="{{ toggleCamera }}" style="background:transparent;color:#31572C;border:1.5px solid #C6CFB8;border-radius:999px;padding:13px 22px;font-size:14px;font-weight:700" style-hover="border-color:#31572C">{{ cameraLabel }}</button>
+              <sc-if value="{{ cameraOn }}" hint-placeholder-val="{{ false }}">
+                <button onClick="{{ shoot }}" style="background:#E8A317;color:#31572C;border:0;border-radius:999px;padding:13px 22px;font-size:14px;font-weight:700" style-hover="background:#F5BC3E">Снять кадр</button>
+              </sc-if>
+              <sc-if value="{{ hasImage }}" hint-placeholder-val="{{ false }}">
+                <button onClick="{{ reset }}" style="background:transparent;color:#7C8A73;border:0;border-radius:999px;padding:13px 16px;font-size:14px;font-weight:700;margin-left:auto" style-hover="color:#31572C">Сбросить</button>
+              </sc-if>
+            </div>
+            <input type="file" accept="image/*" ref="{{ fileRef }}" onChange="{{ onFile }}" style="display:none" />
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:16px">
+            <sc-if value="{{ noResult }}" hint-placeholder-val="{{ true }}">
+              <div style="background:#FFFFFF;border:1px dashed #D3DAC2;border-radius:24px;padding:34px">
+                <h3 style="font-family:Unbounded,sans-serif;font-weight:600;font-size:20px;letter-spacing:-.02em;margin:0 0 10px">Результат появится здесь</h3>
+                <p style="margin:0 0 20px;font-size:15px;line-height:1.6;color:#4C5C48">Что сервис умеет узнавать: бутылки, банки, стаканы, газеты и книги, пакеты, стеклянную посуду, овощи и фрукты, столовые приборы, технику и батарейки.</p>
+                <div style="display:flex;flex-direction:column;gap:10px">
+                  <span style="font-size:13px;font-weight:700;color:#7C8A73;letter-spacing:.04em;text-transform:uppercase">Совет для точности</span>
+                  <span style="font-size:15px;color:#4C5C48;line-height:1.55">Один предмет в кадре, ровный фон, хорошее освещение, этикетка видна.</span>
+                </div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ hasResult }}" hint-placeholder-val="{{ false }}">
+              <div style="{{ resultCardStyle }}">
+                <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap">
+                  <div>
+                    <span style="font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;opacity:.75">{{ resultObject }}</span>
+                    <h2 style="font-family:Unbounded,sans-serif;font-weight:800;font-size:clamp(28px,3.4vw,40px);letter-spacing:-.03em;margin:8px 0 0">{{ resultCat }}</h2>
+                  </div>
+                  <span style="{{ confBadgeStyle }}">{{ resultConf }}</span>
+                </div>
+                <div style="{{ binRowStyle }}">
+                  <span style="{{ binDotStyle }}"></span>
+                  <span style="font-size:16px;font-weight:700">{{ resultBin }}</span>
+                </div>
+                <p style="margin:16px 0 0;font-size:16px;line-height:1.6;opacity:.9">{{ resultHint }}</p>
+              </div>
+
+              <div style="background:#FFFFFF;border:1px solid #DDE2CE;border-radius:24px;padding:26px">
+                <span style="font-size:13px;font-weight:700;color:#7C8A73;letter-spacing:.05em;text-transform:uppercase">Подготовь перед выбросом</span>
+                <div style="display:flex;flex-direction:column;gap:12px;margin-top:16px">
+                  <sc-for list="{{ resultPrep }}" as="step" hint-placeholder-count="3">
+                    <div style="display:flex;gap:12px;align-items:flex-start">
+                      <span style="flex:none;width:22px;height:22px;border-radius:50%;background:#EDF2DC;color:#40916C;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;margin-top:1px">{{ step.n }}</span>
+                      <span style="font-size:15px;line-height:1.5;color:#3A4B36">{{ step.text }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-top:24px;padding-top:20px;border-top:1px dashed #DDE2CE">
+                  <div>
+                    <span style="display:block;font-size:12px;font-weight:700;color:#7C8A73;letter-spacing:.04em;text-transform:uppercase">Разлагается</span>
+                    <span style="display:block;font-size:16px;font-weight:700;margin-top:6px">{{ resultDecay }}</span>
+                  </div>
+                  <div>
+                    <span style="display:block;font-size:12px;font-weight:700;color:#7C8A73;letter-spacing:.04em;text-transform:uppercase">Станет</span>
+                    <span style="display:block;font-size:16px;font-weight:700;margin-top:6px">{{ resultBecomes }}</span>
+                  </div>
+                </div>
+                <div style="margin-top:22px;background:#FDF6E7;border:1px solid #F0DFB4;border-radius:14px;padding:16px">
+                  <span style="display:block;font-size:12px;font-weight:800;color:#8A6410;letter-spacing:.04em;text-transform:uppercase">Не кладите в этот бак</span>
+                  <span style="display:block;font-size:14px;line-height:1.55;color:#5C4708;margin-top:8px">{{ resultAvoid }}</span>
+                </div>
+              </div>
+
+              <div style="background:#FFFFFF;border:1px solid #DDE2CE;border-radius:24px;padding:22px">
+                <span style="font-size:13px;font-weight:700;color:#7C8A73;letter-spacing:.05em;text-transform:uppercase">Модель ошиблась? Исправьте</span>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
+                  <sc-for list="{{ cats }}" as="cat" hint-placeholder-count="5">
+                    <button onClick="{{ cat.correct }}" style="{{ cat.chipStyle }}">{{ cat.name }}</button>
+                  </sc-for>
+                </div>
+                <sc-if value="{{ showTech }}" hint-placeholder-val="{{ false }}">
+                  <div style="margin-top:20px;padding-top:16px;border-top:1px dashed #DDE2CE">
+                    <span style="display:block;font-size:12px;font-weight:700;color:#7C8A73;letter-spacing:.04em;text-transform:uppercase;margin-bottom:10px">Что увидела нейросеть</span>
+                    <sc-for list="{{ techRows }}" as="row" hint-placeholder-count="3">
+                      <div style="display:flex;justify-content:space-between;gap:14px;padding:7px 0;border-bottom:1px solid #F0F1E6">
+                        <span style="font-size:13px;color:#4C5C48;font-family:ui-monospace,monospace">{{ row.label }}</span>
+                        <span style="font-size:13px;font-weight:700;color:#31572C;font-family:ui-monospace,monospace">{{ row.score }}</span>
+                      </div>
+                    </sc-for>
+                  </div>
+                </sc-if>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ hasError }}" hint-placeholder-val="{{ false }}">
+              <div style="background:#FCEEEB;border:1px solid #F0C4B9;border-radius:24px;padding:26px">
+                <h3 style="font-family:Unbounded,sans-serif;font-weight:600;font-size:19px;letter-spacing:-.02em;margin:0 0 10px;color:#8A2E14">Не удалось распознать</h3>
+                <p style="margin:0 0 18px;font-size:15px;line-height:1.6;color:#6B3520">{{ errorText }}</p>
+                <div style="display:flex;gap:8px;flex-wrap:wrap">
+                  <sc-for list="{{ cats }}" as="cat" hint-placeholder-count="5">
+                    <button onClick="{{ cat.correct }}" style="{{ cat.chipStyle }}">{{ cat.name }}</button>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-if>
+          </div>
+        </div>
+      </section>
+    </sc-if>
+
+    <sc-if value="{{ isGuide }}" hint-placeholder-val="{{ true }}">
+      <section style="max-width:1240px;margin:0 auto;padding:clamp(28px,4vw,44px) clamp(16px,4vw,24px) clamp(56px,8vw,90px)">
+        <div style="{{ guideGridStyle }}">
+
+          <div style="{{ guideRailStyle }}">
+            <h1 style="font-family:Unbounded,sans-serif;font-weight:800;font-size:26px;letter-spacing:-.03em;margin:0 0 18px">Справочник</h1>
+            <input value="{{ query }}" onChange="{{ onQuery }}" placeholder="Найти предмет…" style="background:transparent;border:0;border-bottom:1.5px solid #D3DAC2;padding:11px 2px;font-size:15px;color:#31572C;outline:none;margin-bottom:16px;width:100%" style-focus="border-bottom-color:#90A955" />
+            <div style="{{ guideNavWrapStyle }}">
+              <sc-for list="{{ guideNav }}" as="nav" hint-placeholder-count="7">
+                <button onClick="{{ nav.pick }}" style="{{ nav.style }}">
+                  <span style="{{ nav.dotStyle }}"></span>
+                  <span style="{{ nav.labelStyle }}">{{ nav.name }}</span>
+                  <span style="{{ nav.countStyle }}">{{ nav.count }}</span>
+                </button>
+              </sc-for>
+            </div>
+          </div>
+
+          <div>
+            <sc-if value="{{ guideSearching }}" hint-placeholder-val="{{ false }}">
+              <div>
+                <span style="display:block;font-size:13px;font-weight:700;color:#7C8A73;letter-spacing:.05em;text-transform:uppercase">{{ guideFoundLabel }}</span>
+                <div style="display:flex;flex-direction:column;margin-top:22px">
+                  <sc-for list="{{ guideFound }}" as="row" hint-placeholder-count="4">
+                    <div style="display:flex;gap:20px;align-items:baseline;padding:17px 0;border-top:1px solid #D9DFC9">
+                      <span style="{{ row.dotStyle }}"></span>
+                      <span style="flex:1;min-width:0">
+                        <span style="display:block;font-size:17px;font-weight:700;line-height:1.3">{{ row.name }}</span>
+                        <span style="display:block;font-size:14px;color:#7C8A73;margin-top:5px;line-height:1.5">{{ row.note }}</span>
+                      </span>
+                      <span style="{{ row.tagStyle }}">{{ row.cat }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+                <sc-if value="{{ guideEmpty }}" hint-placeholder-val="{{ false }}">
+                  <p style="font-size:17px;color:#4C5C48;line-height:1.6;margin:22px 0 0;max-width:44ch">По этому слову ничего нет. Попробуйте другое название — или отсканируйте предмет на фото, модель определит тип сама.</p>
+                </sc-if>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ guideBrowsing }}" hint-placeholder-val="{{ true }}">
+              <div>
+                <span style="{{ guideBinStyle }}">{{ guideBin }}</span>
+                <h2 style="font-family:Unbounded,sans-serif;font-weight:800;font-size:clamp(34px,4.2vw,52px);letter-spacing:-.035em;margin:16px 0 0">{{ guideName }}</h2>
+                <p style="font-size:19px;line-height:1.55;color:#4C5C48;margin:18px 0 0;max-width:56ch">{{ guideAbout }}</p>
+
+                <div style="display:flex;gap:44px;flex-wrap:wrap;margin-top:30px;padding:22px 0;border-top:1px solid #D9DFC9;border-bottom:1px solid #D9DFC9">
+                  <span style="display:block">
+                    <span style="display:block;font-size:12px;font-weight:700;color:#7C8A73;letter-spacing:.04em;text-transform:uppercase">Разлагается</span>
+                    <span style="display:block;font-size:17px;font-weight:700;margin-top:7px">{{ guideDecay }}</span>
+                  </span>
+                  <span style="display:block">
+                    <span style="display:block;font-size:12px;font-weight:700;color:#7C8A73;letter-spacing:.04em;text-transform:uppercase">Станет</span>
+                    <span style="display:block;font-size:17px;font-weight:700;margin-top:7px">{{ guideBecomes }}</span>
+                  </span>
+                  <span style="display:block">
+                    <span style="display:block;font-size:12px;font-weight:700;color:#7C8A73;letter-spacing:.04em;text-transform:uppercase">Подготовка</span>
+                    <span style="display:block;font-size:17px;font-weight:700;margin-top:7px">{{ guidePrepShort }}</span>
+                  </span>
+                </div>
+
+                <div style="{{ guideBodyGridStyle }}">
+                  <div style="display:flex;flex-direction:column;gap:34px">
+                    <div>
+                      <span style="display:block;font-size:13px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#40916C">Принимают</span>
+                      <div style="display:flex;flex-direction:column;margin-top:14px">
+                        <sc-for list="{{ guideOk }}" as="item" hint-placeholder-count="5">
+                          <div onMouseEnter="{{ item.enter }}" onMouseLeave="{{ item.leave }}" onClick="{{ item.enter }}" style="{{ item.rowStyle }}">
+                            <span style="display:block;font-size:16px;font-weight:700;line-height:1.3">{{ item.name }}</span>
+                            <span style="display:block;font-size:14px;color:#7C8A73;margin-top:5px;line-height:1.5">{{ item.note }}</span>
+                          </div>
+                        </sc-for>
+                      </div>
+                    </div>
+                    <div>
+                      <span style="display:block;font-size:13px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#A63A1E">Не принимают</span>
+                      <div style="display:flex;flex-direction:column;margin-top:14px">
+                        <sc-for list="{{ guideBad }}" as="item" hint-placeholder-count="3">
+                          <div onMouseEnter="{{ item.enter }}" onMouseLeave="{{ item.leave }}" onClick="{{ item.enter }}" style="{{ item.rowStyle }}">
+                            <span style="display:block;font-size:16px;font-weight:700;line-height:1.3;color:#7A4A38">{{ item.name }}</span>
+                            <span style="display:block;font-size:14px;color:#7C8A73;margin-top:5px;line-height:1.5">{{ item.note }}</span>
+                          </div>
+                        </sc-for>
+                        <sc-if value="{{ guideNoBad }}" hint-placeholder-val="{{ false }}">
+                          <p style="margin:14px 0 0;font-size:15px;color:#7C8A73;line-height:1.55;border-top:1px solid #D9DFC9;padding-top:15px">{{ guideAvoid }}</p>
+                        </sc-if>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style="{{ guidePreviewWrapStyle }}">
+                    <div style="{{ guidePreviewStyle }}">
+                      <sc-if value="{{ guideHasPick }}" hint-placeholder-val="{{ false }}">
+                        <sc-for list="{{ guideSlots }}" as="slot" hint-placeholder-count="8">
+                          <div style="{{ slot.wrapStyle }}">
+                            <image-slot id="{{ slot.id }}" shape="rect" placeholder="{{ slot.hint }}"></image-slot>
+                          </div>
+                        </sc-for>
+                      </sc-if>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </sc-if>
+          </div>
+        </div>
+      </section>
+    </sc-if>
+
+    <sc-if value="{{ isProfile }}" hint-placeholder-val="{{ true }}">
+      <section style="max-width:1240px;margin:0 auto;padding:clamp(28px,4vw,44px) clamp(16px,4vw,24px) clamp(48px,7vw,72px)">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));gap:40px;align-items:end">
+          <div>
+            <h1 style="font-family:Unbounded,sans-serif;font-weight:800;font-size:clamp(30px,3.8vw,44px);letter-spacing:-.03em;margin:0">Профиль</h1>
+            <p style="font-size:17px;color:#4C5C48;margin:12px 0 0;max-width:44ch;line-height:1.55">История сканирований и прогресс хранятся в этом браузере.</p>
+          </div>
+          <div style="display:flex;gap:44px;flex-wrap:wrap">
+            <span style="display:block">
+              <span style="display:block;font-family:Unbounded,sans-serif;font-weight:800;font-size:clamp(38px,4.4vw,56px);letter-spacing:-.04em;line-height:1;color:#40916C">{{ points }}</span>
+              <span style="display:block;font-size:13px;font-weight:700;color:#7C8A73;letter-spacing:.04em;text-transform:uppercase;margin-top:10px">эко-очков</span>
+            </span>
+            <span style="display:block">
+              <span style="display:block;font-family:Unbounded,sans-serif;font-weight:800;font-size:clamp(38px,4.4vw,56px);letter-spacing:-.04em;line-height:1">{{ scanCount }}</span>
+              <span style="display:block;font-size:13px;font-weight:700;color:#7C8A73;letter-spacing:.04em;text-transform:uppercase;margin-top:10px">сканирований</span>
+            </span>
+            <span style="display:block">
+              <span style="display:block;font-family:Unbounded,sans-serif;font-weight:800;font-size:clamp(38px,4.4vw,56px);letter-spacing:-.04em;line-height:1">{{ streak }}</span>
+              <span style="display:block;font-size:13px;font-weight:700;color:#7C8A73;letter-spacing:.04em;text-transform:uppercase;margin-top:10px">дней подряд</span>
+            </span>
+          </div>
+        </div>
+
+        <div style="margin-top:44px;padding-top:28px;border-top:1px solid #D9DFC9">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;gap:20px;flex-wrap:wrap">
+            <span style="font-size:13px;font-weight:700;color:#7C8A73;letter-spacing:.05em;text-transform:uppercase">Что вы сортируете</span>
+            <span style="font-size:14px;color:#7C8A73;font-weight:600">{{ catCount }} из 7 типов открыто</span>
+          </div>
+          <div style="display:flex;gap:4px;height:14px;margin-top:16px;border-radius:999px;overflow:hidden;background:#E6E9DA">
+            <sc-for list="{{ mix }}" as="m" hint-placeholder-count="0">
+              <span style="{{ m.barStyle }}"></span>
+            </sc-for>
+          </div>
+          <div style="display:flex;gap:22px;flex-wrap:wrap;margin-top:16px">
+            <sc-for list="{{ mixLegend }}" as="m" hint-placeholder-count="5">
+              <span style="display:flex;align-items:center;gap:9px">
+                <span style="{{ m.dotStyle }}"></span>
+                <span style="font-size:14px;font-weight:700;color:#3A4B36">{{ m.name }}</span>
+                <span style="font-size:14px;color:#8E9B84;font-variant-numeric:tabular-nums">{{ m.count }}</span>
+              </span>
+            </sc-for>
+          </div>
+        </div>
+
+        <div style="{{ profileGridStyle }}">
+          <div>
+            <div style="display:flex;justify-content:space-between;align-items:baseline;gap:14px">
+              <h2 style="font-family:Unbounded,sans-serif;font-weight:600;font-size:24px;letter-spacing:-.025em;margin:0">История</h2>
+              <sc-if value="{{ hasHistory }}" hint-placeholder-val="{{ false }}">
+                <button onClick="{{ clearHistory }}" style="background:transparent;border:0;color:#8E9B84;font-size:13px;font-weight:700;padding:4px 0" style-hover="color:#A63A1E">Очистить</button>
+              </sc-if>
+            </div>
+            <div style="display:flex;flex-direction:column;margin-top:14px">
+              <sc-for list="{{ history }}" as="h" hint-placeholder-count="3">
+                <div style="display:flex;align-items:baseline;gap:16px;padding:16px 0;border-top:1px solid #D9DFC9">
+                  <span style="{{ h.dotStyle }}"></span>
+                  <span style="flex:1;min-width:0">
+                    <span style="display:block;font-size:16px;font-weight:700;line-height:1.3">{{ h.object }}</span>
+                    <span style="display:block;font-size:14px;color:#7C8A73;margin-top:4px">{{ h.cat }} · {{ h.when }}</span>
+                  </span>
+                  <span style="font-size:14px;font-weight:700;color:#8E9B84;font-variant-numeric:tabular-nums">{{ h.conf }}</span>
+                </div>
+              </sc-for>
+              <sc-if value="{{ noHistory }}" hint-placeholder-val="{{ true }}">
+                <div style="padding:22px 0 0;border-top:1px solid #D9DFC9">
+                  <p style="margin:0;font-size:17px;color:#4C5C48;line-height:1.55;max-width:40ch">Пока пусто. Отсканируйте первый предмет — он появится здесь вместе с очками.</p>
+                  <button onClick="{{ goScan }}" style="margin-top:20px;background:#40916C;color:#FAF9F6;border:0;border-radius:999px;padding:14px 24px;font-size:15px;font-weight:700" style-hover="background:#90A955;color:#213A1E">К сканеру</button>
+                </div>
+              </sc-if>
+            </div>
+          </div>
+
+          <div>
+            <h2 style="font-family:Unbounded,sans-serif;font-weight:600;font-size:24px;letter-spacing:-.025em;margin:0">Достижения</h2>
+            <div style="display:flex;flex-direction:column;margin-top:14px">
+              <sc-for list="{{ badges }}" as="b" hint-placeholder-count="5">
+                <div style="{{ b.style }}">
+                  <span style="{{ b.iconStyle }}">{{ b.mark }}</span>
+                  <span style="flex:1;min-width:0">
+                    <span style="{{ b.nameStyle }}">{{ b.name }}</span>
+                    <span style="display:block;font-size:13px;color:#8E9B84;margin-top:4px;line-height:1.45">{{ b.desc }}</span>
+                  </span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+      </section>
+    </sc-if>
+
+  </main>
+
+  <sc-if value="{{ modalOpen }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ closeModal }}" style="{{ modalScrimStyle }}">
+      <div onClick="{{ stopClick }}" style="position:relative;width:100%;max-width:1080px;background:#FAF9F6;border-radius:26px;overflow:hidden;box-shadow:0 40px 90px -40px rgba(18,34,16,.7);animation:ecoUp .22s ease-out">
+        <button onClick="{{ closeModal }}" style="position:absolute;top:20px;right:20px;z-index:3;width:38px;height:38px;border-radius:50%;border:1px solid #D3DAC2;background:rgba(255,255,255,.9);color:#31572C;font-size:18px;font-weight:700;line-height:1;padding:0" style-hover="background:#31572C;color:#FAF9F6">×</button>
+        <div style="{{ modalGridStyle }}">
+          <div style="{{ modalPadStyle }}">
+            <span style="{{ modalChipStyle }}">{{ modalBin }}</span>
+            <h2 style="font-family:Unbounded,sans-serif;font-weight:800;font-size:clamp(30px,3.2vw,42px);letter-spacing:-.035em;margin:16px 0 0">{{ modalName }}</h2>
+            <p style="margin:14px 0 0;font-size:16px;line-height:1.6;color:#4C5C48">{{ modalAbout }}</p>
+            <div style="display:flex;flex-direction:column;gap:11px;margin-top:24px;padding-top:22px;border-top:1px solid #D3DAC2">
+              <span style="font-size:13px;font-weight:700;color:#7C8A73;letter-spacing:.05em;text-transform:uppercase">Как подготовить</span>
+              <sc-for list="{{ modalPrep }}" as="step" hint-placeholder-count="3">
+                <div style="display:flex;gap:13px;align-items:flex-start">
+                  <span style="{{ step.numStyle }}">{{ step.n }}</span>
+                  <span style="font-size:17px;line-height:1.5;color:#3A4B36">{{ step.text }}</span>
+                </div>
+              </sc-for>
+            </div>
+            <div style="display:flex;gap:34px;flex-wrap:wrap;margin-top:24px;padding-top:20px;border-top:1px solid #D3DAC2">
+              <span style="display:block">
+                <span style="display:block;font-size:12px;font-weight:700;color:#7C8A73;letter-spacing:.04em;text-transform:uppercase">Разлагается</span>
+                <span style="display:block;font-size:16px;font-weight:700;margin-top:6px">{{ modalDecay }}</span>
+              </span>
+              <span style="display:block">
+                <span style="display:block;font-size:12px;font-weight:700;color:#7C8A73;letter-spacing:.04em;text-transform:uppercase">Станет</span>
+                <span style="display:block;font-size:16px;font-weight:700;margin-top:6px">{{ modalBecomes }}</span>
+              </span>
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:28px">
+              <button onClick="{{ modalToGuide }}" style="background:#40916C;color:#FAF9F6;border:0;border-radius:999px;padding:14px 22px;font-size:15px;font-weight:700" style-hover="background:#90A955;color:#213A1E">Весь список в справочнике</button>
+              <button onClick="{{ modalToScan }}" style="background:transparent;color:#31572C;border:1.5px solid #C6CFB8;border-radius:999px;padding:14px 22px;font-size:15px;font-weight:700" style-hover="border-color:#31572C">Сканировать предмет</button>
+            </div>
+          </div>
+
+          <div style="{{ modalRightStyle }}">
+            <image-slot id="{{ modalSlotId }}" shape="rect" placeholder="Перетащите фото этого типа отхода"></image-slot>
+            <div style="position:absolute;left:0;right:0;bottom:0;padding:80px 34px 30px;background:linear-gradient(to top,rgba(20,38,18,.88) 0%,rgba(20,38,18,.6) 45%,rgba(20,38,18,0) 100%);pointer-events:none">
+              <span style="display:block;font-size:16px;line-height:1.55;color:#FAF9F6;font-weight:500;text-shadow:0 1px 12px rgba(18,34,16,.5)">{{ modalAvoid }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;minConfidence&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:0.3,&quot;min&quot;:0.1,&quot;max&quot;:0.8,&quot;step&quot;:0.05,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Распознавание&quot;},&quot;showTechDetails&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Распознавание&quot;},&quot;historyLength&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:12,&quot;min&quot;:3,&quot;max&quot;:40,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Профиль&quot;}}">
+class Component extends DCLogic {
+  state = {
+    page: 'home', busy: false, busyText: '', result: null, error: '',
+    imgSrc: '', boxes: [], modelState: 'idle', cameraOn: false, dragging: false,
+    query: '', filter: 'all', tech: [], history: [], points: 0, days: [], hover: '', modal: '',
+    vw: typeof window !== 'undefined' ? window.innerWidth : 1280,
+    vw: typeof window !== 'undefined' ? window.innerWidth : 1280, itemHover: 0
+  };
+
+  CATS = {
+    plastic: {
+      name: 'Пластик', color: '#E8A317', bin: 'Жёлтый бак · пластик',
+      hint: 'Пластиковую упаковку с маркировкой 1 (PET) и 2 (HDPE) принимают почти везде. Проверьте треугольник с цифрой на дне.',
+      prep: ['Вылейте остатки и сполосните водой', 'Снимите крышку и этикетку — их сдают отдельно', 'Сомните, чтобы бутылка занимала меньше места'],
+      decay: '400–500 лет', becomes: 'флис, наполнитель, новая тара',
+      avoid: 'Пакеты из-под сока и молока (тетрапак), одноразовую посуду из ПС, зубные щётки, игрушки, шланги.',
+      about: 'Бутылки, флаконы, канистры и плёнка из полиэтилена и полипропилена. Главное правило — упаковка должна быть чистой и сухой.',
+      items: [
+        { name: 'Бутылка из-под воды', ok: true, note: 'PET, маркировка 1 — самый ценный вид вторсырья' },
+        { name: 'Флакон шампуня', ok: true, note: 'HDPE, маркировка 2 — сполоснуть' },
+        { name: 'Канистра, ведро', ok: true, note: 'Без остатков химии' },
+        { name: 'Пакет-майка, плёнка', ok: true, note: 'Только чистые, сдают отдельным потоком' },
+        { name: 'Крышка от бутылки', ok: true, note: 'Другой пластик — собирайте отдельно' },
+        { name: 'Одноразовая посуда', ok: false, note: 'Чаще всего не перерабатывается' },
+        { name: 'Тетрапак', ok: false, note: 'Многослойный — нужен спецпункт' },
+        { name: 'Зубная щётка', ok: false, note: 'Смешанные материалы — в прочее' }
+      ]
+    },
+    glass: {
+      name: 'Стекло', color: '#4F7C8F', bin: 'Синий бак · стекло',
+      hint: 'Стекло перерабатывается бесконечно и без потери качества — это лучшее вторсырьё из бытового мусора.',
+      prep: ['Вылейте содержимое и сполосните', 'Снимите металлическую или пластиковую крышку', 'Не разбивайте — целую тару сортировать безопаснее'],
+      decay: '1000+ лет', becomes: 'новая бутылка, стекловата, плитка',
+      avoid: 'Оконное и автомобильное стекло, зеркала, лампочки, керамику, хрусталь, посуду из жаропрочного стекла.',
+      about: 'Тара из прозрачного, зелёного и коричневого стекла. Этикетку снимать не обязательно — она сгорит при переплавке.',
+      items: [
+        { name: 'Стеклянная бутылка', ok: true, note: 'Любого цвета, без крышки' },
+        { name: 'Банка от консервов', ok: true, note: 'Сполоснуть от остатков' },
+        { name: 'Стакан, бокал', ok: true, note: 'Если не хрусталь и не жаропрочный' },
+        { name: 'Флакон духов', ok: true, note: 'Без распылителя' },
+        { name: 'Лампочка', ok: false, note: 'Опасный отход — в спецпункт' },
+        { name: 'Зеркало', ok: false, note: 'Покрытие мешает переплавке' },
+        { name: 'Керамическая кружка', ok: false, note: 'Другая температура плавления' },
+        { name: 'Оконное стекло', ok: false, note: 'Отдельный поток на стройпереработку' }
+      ]
+    },
+    paper: {
+      name: 'Бумага', color: '#E5DFCC', bin: 'Белый бак · макулатура',
+      hint: 'Бумагу можно переработать 5–7 раз. Главный враг — влага и жир: мокрая макулатура идёт на свалку.',
+      prep: ['Уберите скотч, скобы, файлы и пластиковые окошки', 'Разберите и сложите коробки плоско', 'Держите сухим — намокшую бумагу не примут'],
+      decay: '2–3 месяца', becomes: 'картон, яичные лотки, туалетная бумага',
+      avoid: 'Чеки на термобумаге, жирные коробки от пиццы, салфетки, фотографии, обои, ламинированные обложки.',
+      about: 'Газеты, журналы, книги, картон, офисная бумага и упаковка. Собирается в макулатуру и перерабатывается почти полностью.',
+      items: [
+        { name: 'Газета, журнал', ok: true, note: 'Идеальное вторсырьё' },
+        { name: 'Картонная коробка', ok: true, note: 'Сложить плоско, снять скотч' },
+        { name: 'Книга', ok: true, note: 'Твёрдую обложку отделить' },
+        { name: 'Офисная бумага', ok: true, note: 'Со скрепками можно' },
+        { name: 'Конверт, тетрадь', ok: true, note: 'Убрать пластиковое окошко и пружину' },
+        { name: 'Кассовый чек', ok: false, note: 'Термобумага с бисфенолом' },
+        { name: 'Коробка от пиццы', ok: false, note: 'Жир портит партию' },
+        { name: 'Салфетка', ok: false, note: 'Слишком короткое волокно' }
+      ]
+    },
+    metal: {
+      name: 'Металл', color: '#7C8A93', bin: 'Серый бак · металл',
+      hint: 'Алюминиевая банка возвращается на полку новой банкой примерно за 60 дней — это самый быстрый цикл переработки.',
+      prep: ['Сполосните от остатков еды и напитков', 'Сомните банку, чтобы сэкономить место', 'У консервов оставьте крышку внутри банки'],
+      decay: '50 лет сталь, 500 лет алюминий', becomes: 'новая банка, деталь, профиль',
+      avoid: 'Баллончики под давлением, батарейки, кастрюли с антипригарным покрытием, фольгу с остатками еды.',
+      about: 'Алюминий и жесть: банки, крышки, фольга, тюбики. Металл — единственное сырьё, которое перерабатывается без потери свойств.',
+      items: [
+        { name: 'Банка из-под напитка', ok: true, note: 'Алюминий — самое дорогое вторсырьё' },
+        { name: 'Консервная банка', ok: true, note: 'Сполоснуть, крышку внутрь' },
+        { name: 'Металлическая крышка', ok: true, note: 'Собирать отдельно от стекла' },
+        { name: 'Чистая фольга', ok: true, note: 'Скатать в плотный шар' },
+        { name: 'Столовые приборы', ok: true, note: 'Как металлолом' },
+        { name: 'Аэрозольный баллончик', ok: false, note: 'Под давлением — опасно' },
+        { name: 'Батарейка', ok: false, note: 'Опасный отход — в спецбокс' },
+        { name: 'Тефлоновая кастрюля', ok: false, note: 'Покрытие мешает переплавке' }
+      ]
+    },
+    organic: {
+      name: 'Органика', color: '#7E9B3F', bin: 'Зелёный бак · органика',
+      hint: 'Органика — треть бытового мусора. На свалке она выделяет метан, а в компосте превращается в удобрение за месяц.',
+      prep: ['Выбросьте без пакета — пакет не компостируется', 'Крупные отходы измельчите', 'Мясо и рыбу в домашний компост не кладут'],
+      decay: '2–5 недель', becomes: 'компост, биогаз, удобрение',
+      avoid: 'Пластиковые пакеты, наклейки с фруктов, чайные пакетики со скобой, кости, масло.',
+      about: 'Растительные остатки, кожура, скорлупа, спитой чай и кофе. При раздельном сборе едет на компостирование.',
+      items: [
+        { name: 'Кожура фруктов и овощей', ok: true, note: 'Снять наклейки' },
+        { name: 'Яблоко, банан, апельсин', ok: true, note: 'Целиком в компост' },
+        { name: 'Хлеб, крупы', ok: true, note: 'Без упаковки' },
+        { name: 'Кофейная гуща, заварка', ok: true, note: 'Хорошее удобрение' },
+        { name: 'Скорлупа яиц', ok: true, note: 'Лучше измельчить' },
+        { name: 'Кости', ok: false, note: 'Разлагаются годами' },
+        { name: 'Чайный пакетик', ok: false, note: 'Скоба и синтетика внутри' },
+        { name: 'Растительное масло', ok: false, note: 'Собирают отдельно' }
+      ]
+    },
+    special: {
+      name: 'Особые отходы', color: '#B4462F', bin: 'Не в бак · пункт приёма',
+      hint: 'Это опасные отходы: в обычном контейнере они травят почву и воду. Их сдают в спецбоксы — часто в супермаркетах и МФЦ.',
+      prep: ['Не выбрасывайте вместе с бытовым мусором', 'Заклейте контакты батареек скотчем', 'Сдайте в спецбокс или пункт приёма электроники'],
+      decay: 'не разлагается, отравляет почву', becomes: 'редкие металлы, пластик, стекло',
+      avoid: 'Обычный контейнер, мусоропровод, органику — никогда.',
+      about: 'Техника, батарейки, лампы, аккумуляторы, градусники, краски и лекарства. Требуют отдельной утилизации.',
+      items: [
+        { name: 'Батарейка, аккумулятор', ok: true, note: 'Спецбокс в магазине' },
+        { name: 'Телефон, ноутбук', ok: true, note: 'Пункт приёма электроники' },
+        { name: 'Энергосберегающая лампа', ok: true, note: 'Содержит ртуть' },
+        { name: 'Градусник', ok: true, note: 'Вызвать спецслужбу при разбитии' },
+        { name: 'Краска, растворитель', ok: true, note: 'Только в спецприём' },
+        { name: 'Лекарства', ok: true, note: 'Аптечная утилизация' }
+      ]
+    },
+    other: {
+      name: 'Прочее', color: '#A3AB9A', bin: 'Серый бак · смешанные отходы',
+      hint: 'Пока такие вещи не перерабатывают: они из смешанных материалов. Лучший способ помочь — покупать их реже.',
+      prep: ['Проверьте, нельзя ли отдать вещь на второй срок службы', 'Уменьшите объём перед выбросом', 'Выбросьте в контейнер для смешанных отходов'],
+      decay: 'десятки лет', becomes: 'полигон или RDF-топливо',
+      avoid: 'Не смешивайте с вторсырьём — испортите чистую партию.',
+      about: 'Вещи из нескольких неразделимых материалов: обувь, игрушки, одноразовая посуда, гигиена, текстиль с фурнитурой.',
+      items: [
+        { name: 'Обувь, одежда', ok: true, note: 'Целую лучше в благотворительность' },
+        { name: 'Мягкая игрушка', ok: true, note: 'Смешанные материалы' },
+        { name: 'Подгузники, гигиена', ok: true, note: 'Не перерабатывается' },
+        { name: 'Зубная щётка, ручка', ok: true, note: 'Слишком мелкие детали' }
+      ]
+    }
+  };
+
+  KEYS = [
+    ['beer bottle', 'glass', 'стеклянная бутылка'], ['wine bottle', 'glass', 'винная бутылка'],
+    ['pop bottle', 'plastic', 'пластиковая бутылка'], ['water bottle', 'plastic', 'пластиковая бутылка'],
+    ['pill bottle', 'plastic', 'пластиковый флакон'], ['plastic bag', 'plastic', 'полиэтиленовый пакет'],
+    ['soap dispenser', 'plastic', 'флакон с дозатором'], ['lotion', 'plastic', 'флакон косметики'],
+    ['sunscreen', 'plastic', 'флакон косметики'], ['hair spray', 'special', 'аэрозольный баллончик'],
+    ['bucket', 'plastic', 'ведро'], ['laundry basket', 'plastic', 'пластиковая корзина'],
+    ['crate', 'plastic', 'пластиковый ящик'], ['syringe', 'special', 'шприц'],
+    ['water jug', 'plastic', 'канистра'], ['whiskey jug', 'glass', 'стеклянный кувшин'],
+    ['beer glass', 'glass', 'стеклянный бокал'], ['wine glass', 'glass', 'бокал'],
+    ['goblet', 'glass', 'бокал'], ['vase', 'glass', 'стеклянная ваза'], ['jar', 'glass', 'стеклянная банка'],
+    ['measuring cup', 'glass', 'мерный стакан'], ['pitcher', 'glass', 'кувшин'],
+    ['perfume', 'glass', 'флакон духов'], ['cocktail shaker', 'metal', 'шейкер'],
+    ['newspaper', 'paper', 'газета'], ['envelope', 'paper', 'конверт'], ['carton', 'paper', 'картонная коробка'],
+    ['book jacket', 'paper', 'книжная обложка'], ['notebook', 'paper', 'тетрадь'],
+    ['binder', 'paper', 'папка с бумагами'], ['comic book', 'paper', 'журнал'],
+    ['crossword', 'paper', 'печатная страница'], ['menu', 'paper', 'бумажное меню'],
+    ['paper towel', 'other', 'бумажное полотенце'], ['toilet tissue', 'other', 'бумага для гигиены'],
+    ['packet', 'paper', 'бумажная упаковка'], ['tin can', 'metal', 'консервная банка'],
+    ['beer can', 'metal', 'алюминиевая банка'], ['pop can', 'metal', 'алюминиевая банка'],
+    ['canister', 'metal', 'металлическая банка'], ['milk can', 'metal', 'металлический бидон'],
+    ['bottlecap', 'metal', 'крышка от бутылки'], ['can opener', 'metal', 'консервный нож'],
+    ['frying pan', 'metal', 'сковорода'], ['wok', 'metal', 'вок'], ['dutch oven', 'metal', 'кастрюля'],
+    ['caldron', 'metal', 'кастрюля'], ['teapot', 'metal', 'чайник'], ['spatula', 'metal', 'лопатка'],
+    ['ladle', 'metal', 'половник'], ['strainer', 'metal', 'сито'], ['tray', 'metal', 'поднос'],
+    ['thimble', 'metal', 'металлический предмет'], ['safety pin', 'metal', 'булавка'],
+    ['paper clip', 'metal', 'скрепка'], ['nail', 'metal', 'гвоздь'], ['screw', 'metal', 'винт'],
+    ['corkscrew', 'metal', 'штопор'], ['banana', 'organic', 'банан'], ['orange', 'organic', 'апельсин'],
+    ['lemon', 'organic', 'лимон'], ['granny smith', 'organic', 'яблоко'], ['pineapple', 'organic', 'ананас'],
+    ['strawberry', 'organic', 'земляника'], ['pomegranate', 'organic', 'гранат'], ['fig', 'organic', 'инжир'],
+    ['corn', 'organic', 'кукуруза'], ['cucumber', 'organic', 'огурец'], ['broccoli', 'organic', 'брокколи'],
+    ['cabbage', 'organic', 'капуста'], ['cauliflower', 'organic', 'капуста'], ['zucchini', 'organic', 'кабачок'],
+    ['artichoke', 'organic', 'артишок'], ['bell pepper', 'organic', 'перец'], ['mushroom', 'organic', 'гриб'],
+    ['acorn squash', 'organic', 'тыква'], ['butternut', 'organic', 'тыква'], ['spaghetti squash', 'organic', 'тыква'],
+    ['bagel', 'organic', 'выпечка'], ['pretzel', 'organic', 'выпечка'], ['french loaf', 'organic', 'хлеб'],
+    ['dough', 'organic', 'тесто'], ['mashed potato', 'organic', 'пищевые остатки'],
+    ['guacamole', 'organic', 'пищевые остатки'], ['carbonara', 'organic', 'пищевые остатки'],
+    ['pizza', 'organic', 'остатки пиццы'], ['hot pot', 'organic', 'пищевые остатки'],
+    ['cellular telephone', 'special', 'мобильный телефон'], ['ipod', 'special', 'плеер'],
+    ['laptop', 'special', 'ноутбук'], ['notebook computer', 'special', 'ноутбук'],
+    ['computer keyboard', 'special', 'клавиатура'], ['typewriter keyboard', 'special', 'клавиатура'],
+    ['mouse', 'special', 'компьютерная мышь'], ['remote control', 'special', 'пульт'],
+    ['monitor', 'special', 'монитор'], ['screen', 'special', 'экран'], ['television', 'special', 'телевизор'],
+    ['printer', 'special', 'принтер'], ['hand-held computer', 'special', 'гаджет'],
+    ['digital watch', 'special', 'электронные часы'], ['electric fan', 'special', 'вентилятор'],
+    ['flashlight', 'special', 'фонарик'], ['lighter', 'special', 'зажигалка'],
+    ['candle', 'other', 'свеча'], ['light bulb', 'special', 'лампочка'], ['lampshade', 'other', 'абажур'],
+    ['running shoe', 'other', 'кроссовок'], ['sandal', 'other', 'обувь'], ['clog', 'other', 'обувь'],
+    ['loafer', 'other', 'обувь'], ['sock', 'other', 'носок'], ['diaper', 'other', 'подгузник'],
+    ['teddy', 'other', 'мягкая игрушка'], ['sunglasses', 'other', 'очки'], ['sunglass', 'other', 'очки'],
+    ['rubber eraser', 'other', 'ластик'], ['ballpoint', 'other', 'шариковая ручка'],
+    ['pencil sharpener', 'other', 'точилка'], ['toothbrush', 'other', 'зубная щётка'],
+    ['flowerpot', 'other', 'цветочный горшок'], ['coffee mug', 'other', 'керамическая кружка'],
+    ['cup', 'other', 'стакан'], ['soup bowl', 'other', 'пиала'], ['plate', 'other', 'тарелка']
+  ];
+
+  COCO = {
+    'bottle': ['plastic', 'бутылка'], 'wine glass': ['glass', 'бокал'], 'cup': ['other', 'стакан'],
+    'fork': ['metal', 'вилка'], 'knife': ['metal', 'нож'], 'spoon': ['metal', 'ложка'],
+    'bowl': ['other', 'посуда'], 'banana': ['organic', 'банан'], 'apple': ['organic', 'яблоко'],
+    'orange': ['organic', 'апельсин'], 'broccoli': ['organic', 'брокколи'], 'carrot': ['organic', 'морковь'],
+    'sandwich': ['organic', 'пищевые остатки'], 'hot dog': ['organic', 'пищевые остатки'],
+    'pizza': ['organic', 'остатки пиццы'], 'donut': ['organic', 'выпечка'], 'cake': ['organic', 'выпечка'],
+    'book': ['paper', 'книга'], 'vase': ['glass', 'ваза'], 'scissors': ['metal', 'ножницы'],
+    'cell phone': ['special', 'телефон'], 'laptop': ['special', 'ноутбук'], 'tv': ['special', 'телевизор'],
+    'remote': ['special', 'пульт'], 'keyboard': ['special', 'клавиатура'], 'mouse': ['special', 'мышь'],
+    'microwave': ['special', 'микроволновка'], 'toaster': ['special', 'тостер'],
+    'hair drier': ['special', 'фен'], 'toothbrush': ['other', 'зубная щётка'],
+    'teddy bear': ['other', 'мягкая игрушка'], 'potted plant': ['organic', 'растение'],
+    'backpack': ['other', 'рюкзак'], 'handbag': ['other', 'сумка'], 'umbrella': ['other', 'зонт'],
+    'refrigerator': ['special', 'холодильник'], 'sink': ['other', 'раковина'], 'clock': ['special', 'часы']
+  };
+
+  constructor(props) {
+    super(props);
+    this.imgRef = React.createRef();
+    this.fileRef = React.createRef();
+    this.videoRef = React.createRef();
+  }
+
+  componentDidMount() {
+    try {
+      const raw = localStorage.getItem('ecoscanner.v1');
+      if (raw) {
+        const d = JSON.parse(raw);
+        this.setState({ history: d.history || [], points: d.points || 0, days: d.days || [] });
+      }
+    } catch (e) {}
+    this.onKey = e => { if (e.key === 'Escape' && this.state.modal) this.setState({ modal: '' }); };
+    window.addEventListener('keydown', this.onKey);
+    this.onResize = () => {
+      const w = window.innerWidth;
+      if (w !== this.state.vw) this.setState({ vw: w });
+    };
+    this.onResize();
+    window.addEventListener('resize', this.onResize);
+    this.onResize = () => {
+      const w = window.innerWidth;
+      if (Math.abs(w - this.state.vw) > 0) this.setState({ vw: w });
+    };
+    this.onResize();
+    window.addEventListener('resize', this.onResize);
+    this.loadModels();
+  }
+
+  componentWillUnmount() {
+    this.stopCamera(); clearTimeout(this.pickTimer);
+    window.removeEventListener('keydown', this.onKey);
+    window.removeEventListener('resize', this.onResize);
+  }
+
+  componentDidUpdate() {
+    const el = this.imgRef.current;
+    if (el && this.state.imgSrc && el.getAttribute('src') !== this.state.imgSrc) el.setAttribute('src', this.state.imgSrc);
+  }
+
+  save(patch) {
+    const next = {
+      history: patch.history !== undefined ? patch.history : this.state.history,
+      points: patch.points !== undefined ? patch.points : this.state.points,
+      days: patch.days !== undefined ? patch.days : this.state.days
+    };
+    try { localStorage.setItem('ecoscanner.v1', JSON.stringify(next)); } catch (e) {}
+    this.setState(next);
+  }
+
+  async loadModels() {
+    if (this.models || this.state.modelState === 'loading') return this.models;
+    this.setState({ modelState: 'loading' });
+    try {
+      const t0 = Date.now();
+      while (!(window.tf && window.cocoSsd && window.mobilenet)) {
+        if (Date.now() - t0 > 30000) throw new Error('cdn');
+        await new Promise(r => setTimeout(r, 250));
+      }
+      const [det, cls] = await Promise.all([
+        window.cocoSsd.load({ base: 'lite_mobilenet_v2' }),
+        window.mobilenet.load({ version: 2, alpha: 1.0 })
+      ]);
+      this.models = { det, cls };
+      this.setState({ modelState: 'ready' });
+      return this.models;
+    } catch (e) {
+      this.setState({ modelState: 'error' });
+      return null;
+    }
+  }
+
+  matchKey(label) {
+    const l = String(label).toLowerCase();
+    for (const [key, cat, ru] of this.KEYS) if (l.indexOf(key) !== -1) return { cat, ru, key };
+    return null;
+  }
+
+  async analyze(el) {
+    this.setState({ busy: true, busyText: this.models ? 'Распознаём предмет…' : 'Загружаем модель распознавания…', error: '', result: null, boxes: [] });
+    const m = await this.loadModels();
+    if (!m) {
+      this.setState({ busy: false, error: 'Не удалось загрузить модель распознавания — вероятно, нет доступа к сети. Выберите тип отхода вручную, остальные подсказки работают.' });
+      return;
+    }
+    this.setState({ busyText: 'Распознаём предмет…' });
+    let dets = [], cls = [];
+    try {
+      dets = await m.det.detect(el, 8, 0.28);
+      cls = await m.cls.classify(el, 5);
+    } catch (e) {
+      this.setState({ busy: false, error: 'Модель не смогла обработать это изображение. Попробуйте другое фото.' });
+      return;
+    }
+
+    const min = Number(this.props.minConfidence ?? 0.3);
+    const scores = {};
+    const bump = (cat, v) => { if (cat) scores[cat] = (scores[cat] || 0) + v; };
+
+    const clsHits = cls.map(c => ({ raw: c.className, p: c.probability, hit: this.matchKey(c.className) }));
+    clsHits.forEach((h, i) => { if (h.hit) bump(h.hit.cat, h.p * (i === 0 ? 1.6 : 1.0)); });
+
+    const detHits = dets.filter(d => d.score >= min).map(d => {
+      const c = this.COCO[d.class];
+      return { d, cat: c ? c[0] : null, ru: c ? c[1] : d.class };
+    });
+    detHits.forEach(h => bump(h.cat, h.d.score * 1.1));
+
+    const bottle = detHits.find(h => h.d.class === 'bottle');
+    if (bottle) {
+      const glassy = clsHits.find(h => h.hit && h.hit.cat === 'glass');
+      const plasticy = clsHits.find(h => h.hit && h.hit.cat === 'plastic');
+      if (glassy && (!plasticy || glassy.p >= plasticy.p)) bump('glass', 0.9);
+      else if (plasticy) bump('plastic', 0.9);
+    }
+
+    const ranked = Object.keys(scores).sort((a, b) => scores[b] - scores[a]);
+    const top = ranked[0];
+    const total = ranked.reduce((s, k) => s + scores[k], 0) || 1;
+
+    const tech = []
+      .concat(detHits.slice(0, 3).map(h => ({ label: 'детектор: ' + h.d.class, score: h.d.score.toFixed(2) })))
+      .concat(clsHits.slice(0, 3).map(h => ({ label: 'классификатор: ' + h.raw.split(',')[0], score: h.p.toFixed(2) })));
+
+    if (!top) {
+      this.setState({
+        busy: false, tech,
+        error: 'Предмет на фото не похож ни на один известный тип отхода. Снимите один предмет крупно на ровном фоне — или выберите категорию вручную.'
+      });
+      return;
+    }
+
+    const boxes = [];
+    const primary = detHits.find(h => h.cat === top) || detHits[0];
+    if (primary) {
+      const iw = el.naturalWidth || el.videoWidth || el.width;
+      const ih = el.naturalHeight || el.videoHeight || el.height;
+      const [x, y, w, h] = primary.d.bbox;
+      boxes.push({
+        cat: top,
+        label: (this.COCO[primary.d.class] ? this.COCO[primary.d.class][1] : primary.d.class) + ' · ' + primary.d.score.toFixed(2),
+        left: Math.max(0, x / iw * 100), top: Math.max(0, y / ih * 100),
+        width: Math.min(100, w / iw * 100), height: Math.min(100, h / ih * 100)
+      });
+    } else {
+      boxes.push({ cat: top, label: 'область анализа', left: 8, top: 8, width: 84, height: 84 });
+    }
+
+    const objName = (primary && this.COCO[primary.d.class] && this.COCO[primary.d.class][1])
+      || (clsHits.find(h => h.hit) || {}).hit?.ru
+      || 'предмет';
+
+    const conf = Math.min(0.99, Math.max(0.35, scores[top] / total * (primary ? 1 : 0.85)));
+    const result = { cat: top, object: objName, conf, manual: false };
+    this.setState({ busy: false, result, boxes, tech });
+    this.record(result);
+  }
+
+  record(result) {
+    const now = new Date();
+    const day = now.toISOString().slice(0, 10);
+    const seen = this.state.history.some(h => h.cat === result.cat);
+    const entry = {
+      cat: result.cat, object: result.object, conf: result.conf,
+      ts: now.getTime(), manual: !!result.manual
+    };
+    const history = [entry].concat(this.state.history).slice(0, 40);
+    const days = this.state.days.indexOf(day) === -1 ? [day].concat(this.state.days).slice(0, 60) : this.state.days;
+    this.save({ history, days, points: this.state.points + 10 + (seen ? 0 : 15) });
+  }
+
+  readFile(file) {
+    if (!file || !/^image\//.test(file.type)) {
+      this.setState({ error: 'Нужен файл изображения: JPG, PNG или WEBP.' });
+      return;
+    }
+    this.stopCamera();
+    const fr = new FileReader();
+    fr.onload = () => this.setState({ imgSrc: String(fr.result), result: null, boxes: [], error: '' });
+    fr.readAsDataURL(file);
+  }
+
+  stopCamera() {
+    if (this.stream) { this.stream.getTracks().forEach(t => t.stop()); this.stream = null; }
+    if (this.state.cameraOn) this.setState({ cameraOn: false });
+  }
+
+  async startCamera() {
+    this.setState({ cameraOn: true, imgSrc: '', result: null, boxes: [], error: '' });
+    try {
+      this.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      await new Promise(r => setTimeout(r, 60));
+      if (this.videoRef.current) { this.videoRef.current.srcObject = this.stream; await this.videoRef.current.play().catch(() => {}); }
+    } catch (e) {
+      this.setState({ cameraOn: false, error: 'Камера недоступна: браузер не дал доступ. Загрузите фото файлом.' });
+    }
+  }
+
+  navStyle(page) {
+    const on = this.state.page === page;
+    return {
+      background: on ? '#EDF2DC' : 'transparent', color: on ? '#40916C' : '#4C5C48',
+      border: 0, borderRadius: 999, padding: '10px 14px', fontSize: 15, fontWeight: on ? 700 : 600, whiteSpace: 'nowrap'
+    };
+  }
+
+  isLight(hex) {
+    const n = parseInt(hex.slice(1), 16);
+    return (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) > 165;
+  }
+
+  renderVals() {
+    const S = this.state, C = this.CATS;
+    const mob = S.vw < 900;
+    const cat = S.result ? C[S.result.cat] : null;
+    const showTech = this.props.showTechDetails ?? true;
+    const go = p => () => { if (p !== 'scan') this.stopCamera(); this.setState({ page: p, itemHover: '' }); window.scrollTo(0, 0); };
+
+    const catList = ['plastic', 'glass', 'paper', 'metal', 'organic'].map(id => ({
+      id, name: C[id].name, bin: C[id].bin,
+      examples: C[id].items.filter(i => i.ok).slice(0, 3).map(i => i.name.toLowerCase()).join(' · '),
+      hoverOn: () => this.setState({ hover: id }),
+      hoverOff: () => this.setState({ hover: '' }),
+      rowStyle: {
+        display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap',
+        background: S.hover === id ? '#FFFFFF' : 'transparent', border: 0,
+        borderTop: '1px solid #D3DAC2', color: '#31572C',
+        padding: S.hover === id ? '26px 22px' : '26px 0', borderRadius: 14,
+        transition: 'background .18s, padding .18s'
+      },
+      barStyle: {
+        display: 'block', flex: 'none', width: S.hover === id ? 34 : 22, height: 22,
+        borderRadius: 7, background: C[id].color, transition: 'width .18s'
+      },
+      arrowStyle: {
+        fontSize: 20, color: C[id].color, opacity: S.hover === id ? 1 : 0,
+        transform: S.hover === id ? 'none' : 'translateX(-6px)', transition: 'opacity .18s, transform .18s'
+      },
+      swatchStyle: { display: 'block', width: 26, height: 26, borderRadius: 8, background: C[id].color },
+      chipStyle: {
+        background: S.result && S.result.cat === id ? C[id].color : '#F0F1E6',
+        color: S.result && S.result.cat === id ? '#31572C' : '#4C5C48',
+        border: '1px solid ' + (S.result && S.result.cat === id ? C[id].color : '#DDE2CE'),
+        borderRadius: 999, padding: '9px 15px', fontSize: 14, fontWeight: 700
+      },
+      open: () => this.setState({ modal: id, hover: '' }),
+      correct: () => {
+        const r = { cat: id, object: S.result ? S.result.object : 'указано вручную', conf: 1, manual: true };
+        this.setState({ result: r, error: '', boxes: S.boxes.map(b => Object.assign({}, b, { cat: id })) });
+        this.record(r);
+      }
+    }));
+
+    const q = S.query.trim().toLowerCase();
+    const allIds = Object.keys(C);
+    const curId = C[S.filter] ? S.filter : 'plastic';
+    const cur = C[curId];
+
+    const guideNav = allIds.map(id => {
+      const on = id === curId && !q;
+      return {
+        name: C[id].name, count: C[id].items.length,
+        pick: () => this.setState({ filter: id, query: '', itemHover: '' }),
+        style: {
+          display: 'flex', alignItems: 'center', gap: mob ? 8 : 12, width: mob ? 'auto' : '100%',
+          flex: mob ? 'none' : 'initial', whiteSpace: 'nowrap',
+          background: on ? '#FFFFFF' : mob ? 'rgba(255,255,255,.55)' : 'transparent',
+          border: mob ? '1px solid ' + (on ? '#C2CBB4' : 'transparent') : 0, borderRadius: 999,
+          padding: mob ? '10px 14px' : '12px 14px', fontSize: mob ? 15 : 16, fontWeight: on ? 700 : 600,
+          color: on ? '#31572C' : '#5A6A5F',
+          boxShadow: on && !mob ? '0 8px 22px -16px rgba(49,87,44,.6)' : 'none'
+        },
+        labelStyle: mob ? { textAlign: 'left' } : { flex: 1, textAlign: 'left' },
+        dotStyle: { display: 'block', flex: 'none', width: 12, height: 12, borderRadius: 4, background: C[id].color, opacity: on ? 1 : .55 },
+        countStyle: { fontSize: 13, fontWeight: 700, color: '#9EAB93', fontVariantNumeric: 'tabular-nums', display: mob ? 'none' : 'inline' }
+      };
+    });
+
+    const found = q ? allIds.reduce((acc, id) => acc.concat(
+      C[id].items.filter(it => it.name.toLowerCase().indexOf(q) !== -1 || it.note.toLowerCase().indexOf(q) !== -1)
+        .map(it => ({
+          name: it.name, note: it.note, cat: C[id].name,
+          dotStyle: { display: 'block', flex: 'none', width: 12, height: 12, borderRadius: 4, background: C[id].color, marginTop: 6 },
+          tagStyle: { fontSize: 13, fontWeight: 700, color: it.ok ? '#4C5C48' : '#A63A1E', whiteSpace: 'nowrap' }
+        }))
+    ), []) : [];
+
+    const hoverIdx = cur.items[S.itemHover] ? S.itemHover : -1;
+    const guideRow = (it, idx) => ({
+      name: it.name, note: it.note,
+      enter: () => {
+        clearTimeout(this.pickTimer);
+        this.pickTimer = setTimeout(() => this.setState({ itemHover: '' }), 15000);
+        this.setState({ itemHover: idx });
+      },
+      leave: () => {},
+      rowStyle: {
+        padding: idx === hoverIdx ? '15px 16px' : '15px 0',
+        borderTop: '1px solid #D9DFC9', cursor: 'pointer', borderRadius: 12,
+        background: idx === hoverIdx ? cur.color + '1A' : 'transparent',
+        transition: 'background .16s, padding .16s'
+      }
+    });
+
+    const plural = n => n % 10 === 1 && n % 100 !== 11 ? 'предмет' : (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? 'предмета' : 'предметов');
+
+    const dayCount = (() => {
+      let n = 0; const d = new Date();
+      for (;;) {
+        const key = d.toISOString().slice(0, 10);
+        if (S.days.indexOf(key) === -1) break;
+        n++; d.setDate(d.getDate() - 1);
+      }
+      return n;
+    })();
+    const usedCats = S.history.reduce((a, h) => (a.indexOf(h.cat) === -1 ? a.concat(h.cat) : a), []);
+
+    const badge = (name, desc, done) => ({
+      name, desc, mark: done ? '✓' : '',
+      style: { display: 'flex', gap: 14, alignItems: 'flex-start', padding: '16px 0', borderTop: '1px solid #D9DFC9' },
+      nameStyle: { display: 'block', fontSize: 16, fontWeight: 700, lineHeight: 1.3, color: done ? '#31572C' : '#9EAB93' },
+      iconStyle: {
+        flex: 'none', width: 24, height: 24, borderRadius: '50%', display: 'flex', alignItems: 'center',
+        justifyContent: 'center', fontSize: 12, fontWeight: 800, marginTop: 1,
+        background: done ? '#40916C' : 'transparent', color: '#FAF9F6',
+        border: done ? '0' : '1.5px solid #CFD7BE'
+      }
+    });
+
+    const mixCounts = S.history.reduce((a, h) => { a[h.cat] = (a[h.cat] || 0) + 1; return a; }, {});
+    const mixIds = Object.keys(mixCounts).sort((a, b) => mixCounts[b] - mixCounts[a]);
+    const mixTotal = S.history.length || 1;
+
+    const fmt = ts => {
+      const d = new Date(ts), n = new Date();
+      const t = d.getHours().toString().padStart(2, '0') + ':' + d.getMinutes().toString().padStart(2, '0');
+      return d.toDateString() === n.toDateString() ? 'сегодня ' + t : d.getDate() + '.' + (d.getMonth() + 1).toString().padStart(2, '0') + ' ' + t;
+    };
+
+    const mc = S.modal ? C[S.modal] : null;
+
+    return {
+      modalOpen: !!mc,
+      closeModal: () => this.setState({ modal: '' }),
+      stopClick: e => e.stopPropagation(),
+      modalName: mc ? mc.name : '', modalBin: mc ? mc.bin.split(' · ')[0] : '', modalAbout: mc ? mc.about : '',
+      modalDecay: mc ? mc.decay : '', modalBecomes: mc ? mc.becomes : '', modalAvoid: mc ? mc.avoid : '',
+      modalSlotId: 'eco-cat-' + (S.modal || 'none'),
+      modalChipStyle: mc ? {
+        display: 'inline-block', background: mc.color, color: this.isLight(mc.color) ? '#31572C' : '#FAF9F6', borderRadius: 999,
+        padding: '9px 16px', fontSize: 13, fontWeight: 800, letterSpacing: '.05em', textTransform: 'uppercase'
+      } : {},
+      modalRightStyle: mc ? {
+        position: 'relative', minHeight: mob ? 260 : 460, background: mc.color + '1F', overflow: 'hidden'
+      } : {},
+      modalPrep: mc ? mc.prep.map((t, i) => ({
+        n: i + 1, text: t,
+        numStyle: {
+          flex: 'none', width: 26, height: 26, borderRadius: '50%', display: 'flex', alignItems: 'center',
+          justifyContent: 'center', fontSize: 14, fontWeight: 800, marginTop: 1,
+          background: mc.color + '33', color: '#31572C'
+        }
+      })) : [],
+      modalToGuide: () => { this.setState({ page: 'guide', filter: S.modal, query: '', modal: '' }); window.scrollTo(0, 0); },
+      modalToScan: () => { this.setState({ page: 'scan', modal: '' }); window.scrollTo(0, 0); },
+
+      isHome: S.page === 'home', isScan: S.page === 'scan', isGuide: S.page === 'guide', isProfile: S.page === 'profile',
+      goHome: go('home'), goScan: go('scan'), goGuide: go('guide'), goProfile: go('profile'),
+      navHome: this.navStyle('home'), navScan: this.navStyle('scan'), navGuide: this.navStyle('guide'), navProfile: this.navStyle('profile'),
+      modelStatus: { idle: 'модель не загружена', loading: 'загрузка модели', ready: 'модель готова', error: 'модель недоступна' }[S.modelState],
+      modelDotStyle: {
+        display: 'block', width: 8, height: 8, borderRadius: '50%',
+        background: S.modelState === 'ready' ? '#90A955' : S.modelState === 'error' ? '#C0392B' : '#E8A317',
+        animation: S.modelState === 'loading' ? 'ecoPulse 1.1s ease-in-out infinite' : 'none'
+      },
+      cats: catList,
+      guideNav, guideSearching: !!q, guideBrowsing: !q,
+      guideFound: found, guideEmpty: !!q && found.length === 0,
+      guideFoundLabel: found.length + ' ' + plural(found.length) + ' по запросу «' + S.query.trim() + '»',
+      guideName: cur.name, guideBin: cur.bin.split(' · ')[0], guideAbout: cur.about,
+      guideDecay: cur.decay, guideBecomes: cur.becomes, guideAvoid: cur.avoid, guideHint: cur.hint,
+      guidePrepShort: cur.prep[0],
+      guideBinStyle: { display: 'inline-block', background: cur.color, color: this.isLight(cur.color) ? '#31572C' : '#FAF9F6', borderRadius: 999, padding: '9px 16px', fontSize: 13, fontWeight: 800, letterSpacing: '.05em', textTransform: 'uppercase' },
+      guideOk: cur.items.filter(i => i.ok).map((it, i) => guideRow(it, cur.items.indexOf(it))),
+      guideBad: cur.items.filter(i => !i.ok).map(it => guideRow(it, cur.items.indexOf(it))),
+      guideNoBad: cur.items.filter(i => !i.ok).length === 0,
+      guideSlots: cur.items.map((it, i) => ({
+        id: 'eco-item-' + curId + '-' + i, hint: it.name,
+        wrapStyle: {
+          position: 'absolute', inset: 0, opacity: i === hoverIdx ? 1 : 0,
+          pointerEvents: i === hoverIdx ? 'auto' : 'none', transition: 'opacity .2s'
+        }
+      })),
+      guidePreviewStyle: {
+        position: 'relative', width: '100%', aspectRatio: mob ? '4 / 3' : '3 / 4', borderRadius: 18, overflow: 'hidden',
+        background: hoverIdx === -1 ? 'transparent' : cur.color + '1F',
+        border: hoverIdx === -1 ? '1px solid transparent' : '1px solid ' + cur.color + '40'
+      },
+      guideGridStyle: mob ? { display: 'flex', flexDirection: 'column', gap: 28 }
+        : { display: 'grid', gridTemplateColumns: 'minmax(200px,240px) minmax(0,1fr)', gap: 48, alignItems: 'start' },
+      guideRailStyle: mob ? { display: 'flex', flexDirection: 'column', gap: 6 }
+        : { position: 'sticky', top: 96, display: 'flex', flexDirection: 'column', gap: 6 },
+      guideNavWrapStyle: mob
+        ? { display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4, margin: '0 -20px', padding: '0 20px 4px', scrollbarWidth: 'none' }
+        : { display: 'flex', flexDirection: 'column', gap: 6 },
+      guideBodyGridStyle: mob ? { display: 'flex', flexDirection: 'column', gap: 28, marginTop: 32 }
+        : { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: 40, marginTop: 40, alignItems: 'start' },
+      guidePreviewWrapStyle: mob
+        ? { display: 'flex', flexDirection: 'column', gap: 14, width: '100%', order: -1 }
+        : { position: 'sticky', top: 96, display: 'flex', flexDirection: 'column', gap: 14, maxWidth: 400, width: '100%', justifySelf: 'end' },
+      profileGridStyle: mob ? { display: 'flex', flexDirection: 'column', gap: 40, marginTop: 40 }
+        : { display: 'grid', gridTemplateColumns: 'minmax(0,1.25fr) minmax(0,1fr)', gap: 56, marginTop: 56, alignItems: 'start' },
+      modalGridStyle: mob ? { display: 'flex', flexDirection: 'column-reverse' }
+        : { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(330px,1fr))' },
+      modalPadStyle: { padding: mob ? '30px 22px 34px' : '42px 36px 40px' },
+      modalScrimStyle: {
+        position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(18,34,16,.55)', backdropFilter: 'blur(6px)',
+        display: 'flex', alignItems: mob ? 'flex-start' : 'center', justifyContent: 'center',
+        padding: mob ? 12 : 28, overflow: 'auto'
+      },
+      guideHasPick: hoverIdx !== -1, guideNoPick: hoverIdx === -1,
+      guideHoverName: cur.items[hoverIdx] ? cur.items[hoverIdx].name : '',
+      query: S.query, onQuery: e => this.setState({ query: e.target.value, itemHover: '' }),
+
+      hasImage: !!S.imgSrc, showEmpty: !S.imgSrc && !S.cameraOn, cameraOn: S.cameraOn,
+      imgRef: this.imgRef, fileRef: this.fileRef, videoRef: this.videoRef,
+      busy: S.busy, busyText: S.busyText,
+      dropStyle: {
+        position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        minHeight: 300, borderRadius: 18, cursor: 'pointer', overflow: 'hidden',
+        border: '2px dashed ' + (S.dragging ? '#90A955' : '#D3DAC2'),
+        background: S.dragging ? '#F0F4DE' : '#F4F5EA', padding: S.imgSrc || S.cameraOn ? 6 : 0
+      },
+      onDragOver: e => { e.preventDefault(); if (!S.dragging) this.setState({ dragging: true }); },
+      onDragLeave: () => this.setState({ dragging: false }),
+      onDrop: e => { e.preventDefault(); this.setState({ dragging: false }); this.readFile(e.dataTransfer.files && e.dataTransfer.files[0]); },
+      pickFile: () => { if (this.fileRef.current) this.fileRef.current.click(); },
+      onFile: e => { this.readFile(e.target.files && e.target.files[0]); e.target.value = ''; },
+      onImgLoad: e => { const el = e.target; if (el.dataset.done !== el.src) { el.dataset.done = el.src; this.analyze(el); } },
+      cameraLabel: S.cameraOn ? 'Выключить камеру' : 'Снять на камеру',
+      toggleCamera: () => (S.cameraOn ? this.stopCamera() : this.startCamera()),
+      shoot: () => {
+        const v = this.videoRef.current; if (!v) return;
+        const cv = document.createElement('canvas');
+        cv.width = v.videoWidth || 640; cv.height = v.videoHeight || 480;
+        cv.getContext('2d').drawImage(v, 0, 0, cv.width, cv.height);
+        const url = cv.toDataURL('image/jpeg', 0.92);
+        this.stopCamera();
+        this.setState({ imgSrc: url, result: null, boxes: [], error: '' });
+      },
+      reset: () => { this.stopCamera(); this.setState({ imgSrc: '', result: null, boxes: [], error: '', tech: [] }); },
+
+      boxes: S.boxes.map(b => ({
+        label: b.label,
+        style: {
+          position: 'absolute', left: b.left + '%', top: b.top + '%', width: b.width + '%', height: b.height + '%',
+          border: '3px solid ' + C[b.cat].color, borderRadius: 8, boxShadow: '0 0 0 9999px rgba(49,87,44,.18)', animation: 'ecoUp .25s ease-out'
+        },
+        tagStyle: {
+          position: 'absolute', left: -3, top: -28, background: C[b.cat].color, color: '#31572C',
+          fontSize: 12, fontWeight: 800, padding: '4px 9px', borderRadius: 6, whiteSpace: 'nowrap'
+        }
+      })),
+
+      hasResult: !!cat, noResult: !cat && !S.error, hasError: !!S.error, errorText: S.error,
+      resultCat: cat ? cat.name : '', resultBin: cat ? cat.bin : '', resultHint: cat ? cat.hint : '',
+      resultObject: S.result ? (S.result.manual ? 'указано вручную' : 'на фото: ' + S.result.object) : '',
+      resultConf: S.result ? (S.result.manual ? 'вручную' : 'точность ' + Math.round(S.result.conf * 100) + '%') : '',
+      resultDecay: cat ? cat.decay : '', resultBecomes: cat ? cat.becomes : '', resultAvoid: cat ? cat.avoid : '',
+      resultPrep: cat ? cat.prep.map((t, i) => ({ n: i + 1, text: t })) : [],
+      resultCardStyle: cat ? { background: cat.color, color: '#31572C', borderRadius: 24, padding: 28, boxShadow: '0 20px 44px -26px rgba(49,87,44,.5)' } : {},
+      confBadgeStyle: { background: 'rgba(49,87,44,.14)', borderRadius: 999, padding: '8px 14px', fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap' },
+      binRowStyle: { display: 'flex', alignItems: 'center', gap: 12, marginTop: 20, background: 'rgba(255,255,255,.55)', borderRadius: 14, padding: '14px 16px' },
+      binDotStyle: { display: 'block', width: 18, height: 18, borderRadius: 6, background: '#31572C', opacity: .8 },
+      showTech: showTech && S.tech.length > 0, techRows: S.tech,
+
+      points: S.points, scanCount: S.history.length, catCount: usedCats.length, streak: dayCount,
+      mix: mixIds.map(id => ({
+        barStyle: { display: 'block', flex: mixCounts[id] / mixTotal, background: C[id] ? C[id].color : '#A3AB9A' }
+      })),
+      mixLegend: mixIds.map(id => ({
+        name: C[id] ? C[id].name : id, count: mixCounts[id],
+        dotStyle: { display: 'block', width: 11, height: 11, borderRadius: 4, background: C[id] ? C[id].color : '#A3AB9A' }
+      })),
+      hasHistory: S.history.length > 0, noHistory: S.history.length === 0,
+      history: S.history.slice(0, Number(this.props.historyLength ?? 12)).map(h => ({
+        cat: C[h.cat] ? C[h.cat].name : h.cat, object: h.object, when: fmt(h.ts),
+        conf: h.manual ? '—' : Math.round(h.conf * 100) + '%',
+        dotStyle: { display: 'block', flex: 'none', width: 14, height: 14, borderRadius: 5, background: C[h.cat] ? C[h.cat].color : '#A3AB9A' }
+      })),
+      clearHistory: () => this.save({ history: [], points: 0, days: [] }),
+      badges: [
+        badge('Первый скан', 'Отсканируйте любой предмет', S.history.length >= 1),
+        badge('Разбираюсь', '10 сканирований', S.history.length >= 10),
+        badge('Все пять баков', 'Найдите предметы всех пяти типов', usedCats.filter(c => ['plastic', 'glass', 'paper', 'metal', 'organic'].indexOf(c) !== -1).length >= 5),
+        badge('Неделя привычки', '7 дней сортировки подряд', dayCount >= 7),
+        badge('Осторожно, опасный', 'Распознайте особый отход', usedCats.indexOf('special') !== -1)
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>
