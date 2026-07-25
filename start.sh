@@ -64,6 +64,20 @@ prepare_backend() {
     dim "Ставим зависимости Python…"
     "$PYTHON" -m pip install -q -r requirements.txt
   fi
+
+  # Распознавание включается в .env и тянет torch, поэтому ставится отдельно
+  # и только когда действительно нужно.
+  if grep -qE '^[[:space:]]*CLASSIFIER[[:space:]]*=[[:space:]]*ml' .env 2>/dev/null; then
+    if ! "$PYTHON" -c "import ultralytics, PIL" >/dev/null 2>&1; then
+      dim "CLASSIFIER=ml — ставим зависимости распознавания (это надолго, тянется torch)…"
+      "$PYTHON" -m pip install -q -r requirements-ml.txt
+    fi
+    if [ ! -f prediction/waste_classifier.pt ]; then
+      red "CLASSIFIER=ml, но модель не обучена: prediction/waste_classifier.pt отсутствует."
+      red "Обучите её: $PYTHON -m prediction.train_classifier"
+      exit 1
+    fi
+  fi
 }
 
 prepare_frontend() {

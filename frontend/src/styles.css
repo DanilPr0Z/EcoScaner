@@ -2104,3 +2104,199 @@ a:hover {
     padding: 22px;
   }
 }
+
+/* ---------- Страница модели ---------- */
+
+.model__meta {
+  display: flex;
+  gap: 44px;
+  flex-wrap: wrap;
+  margin-top: 36px;
+  padding: 22px 0;
+  border-top: 1px solid var(--line-soft);
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.model__charts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr));
+  gap: 28px;
+  margin-top: 36px;
+}
+
+.model__classes {
+  margin-top: 36px;
+}
+
+.chart {
+  position: relative;
+  margin: 0;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  padding: 22px;
+}
+
+.chart__title {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 18px;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+.chart__legend {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.chart__legend-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.chart__legend-swatch {
+  display: block;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex: none;
+}
+
+.chart__svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin-top: 12px;
+  overflow: visible;
+}
+
+/* Сетка и оси отступают на второй план — данные важнее разметки. */
+.chart__grid {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.chart__tick {
+  fill: var(--muted-soft);
+  font-size: 11px;
+  font-family: var(--font-body);
+  font-variant-numeric: tabular-nums;
+}
+
+.chart__line {
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.chart__endlabel {
+  font-size: 12px;
+  font-weight: 700;
+  font-family: var(--font-body);
+  font-variant-numeric: tabular-nums;
+}
+
+.chart__crosshair {
+  stroke: var(--line-strong);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+/* Кольцо фона отделяет точку от линии под ней. */
+.chart__marker {
+  stroke: var(--surface);
+  stroke-width: 2;
+}
+
+.chart__tooltip {
+  position: absolute;
+  top: 22px;
+  right: 22px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 12px;
+  box-shadow: 0 12px 28px -18px rgba(49, 87, 44, 0.6);
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.chart__tooltip-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.chart__tooltip-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+.chart__tooltip-row b {
+  margin-left: auto;
+  color: var(--ink);
+}
+
+.model__table {
+  margin-top: 36px;
+}
+
+.model__table summary {
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--accent);
+  padding: 8px 0;
+}
+
+.model__table-wrap {
+  overflow-x: auto;
+  margin-top: 12px;
+}
+
+.model__table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.model__table th {
+  text-align: left;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 10px 14px 10px 0;
+  border-bottom: 1px solid var(--line-soft);
+  white-space: nowrap;
+}
+
+.model__table td {
+  padding: 9px 14px 9px 0;
+  border-bottom: 1px solid var(--chip-muted);
+  color: var(--ink-soft);
+}
+
+.model__table tr.is-best td {
+  font-weight: 700;
+  color: var(--ink);
+  background: var(--chip);
+}

@@ -266,9 +266,8 @@ export function ScanPage() {
             <div className="placeholder">
               <h3 className="placeholder__title">Результат появится здесь</h3>
               <p className="placeholder__text">
-                Что сервис умеет узнавать: бутылки, банки, стаканы, газеты и книги,
-                пакеты, стеклянную посуду, овощи и фрукты, столовые приборы, технику
-                и батарейки.
+                Что сервис умеет узнавать: пластик, стекло, металл, бумагу и картон,
+                пищевые и растительные отходы, текстиль и смешанный мусор.
               </p>
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 <span className="eyebrow">Совет для точности</span>

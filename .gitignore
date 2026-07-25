@@ -19,3 +19,8 @@ __pycache__/
 
 # Веса YOLO — ultralytics скачивает их сам при первом запуске (~84 МБ).
 *.pt
+
+# Датасет RealWaste (666 МБ) и артефакты обучения.
+realwaste-main/
+datasets/
+runs/

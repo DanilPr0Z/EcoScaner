@@ -1,30 +1,34 @@
-"""Распознавание через YOLOv8 — реализация протокола `Classifier`.
+"""Распознавание отходов — реализация протокола `Classifier`.
 
-Адаптер над моделью из `prediction/model_training.py`. Сама функция
-`predict_yolo` здесь не вызывается: она принимает путь к файлу, грузит модель
-на каждый вызов и пишет result.jpg на диск — для сервера не подходит. Мы
-переиспользуем её таблицу классов, а инференс делаем по-своему:
+Материал определяет классификатор, обученный на RealWaste
+(`prediction/train_classifier.py`): пользователь снимает один предмет крупно,
+и вопрос стоит «из чего это», а не «где это на кадре». Такой классификатор
+знает картон, текстиль и смешанный мусор — то, чего в COCO попросту нет.
 
-  * фото приходит байтами и остаётся в памяти — на диск ничего не пишем;
-  * модель загружается один раз и живёт до перезапуска;
-  * инференс уходит в поток, чтобы не блокировать событийный цикл;
-  * рамки пересчитываются в проценты, потому что фронт рисует их поверх
-    своего локального превью.
+Детектор COCO при этом остаётся, но только ради рамки: он подсказывает, где
+на снимке предмет, и иногда даёт название точнее («пластиковая бутылка» вместо
+«пластик»). На решение о категории он не влияет и отключается настройкой.
 
-Включается через CLASSIFIER=ml в .env. Зависимости — requirements-ml.txt.
+Обе модели грузятся один раз при старте, инференс уходит в отдельный поток —
+иначе на время счёта встаёт весь сервер. Фото остаётся в памяти, на диск
+ничего не пишется.
+
+Включается через CLASSIFIER=ml. Зависимости — requirements-ml.txt.
 """
 
 from __future__ import annotations
 
 import asyncio
 import io
+from pathlib import Path
 from typing import Any
 
 from app.core.config import settings
 from app.services.recognition.base import Box, Prediction, TechRow
 from prediction.model_training import COCO_CLASSES_RU
+from prediction.train_classifier import REALWASTE_CLASSES_RU
 
-#: Названия категорий у модели — русские, у нас id латиницей.
+#: Названия категорий в моделях русские, в справочнике — id латиницей.
 _CATEGORY_ID_BY_RU: dict[str, str] = {
     "пластик": "plastic",
     "стекло": "glass",
@@ -35,61 +39,79 @@ _CATEGORY_ID_BY_RU: dict[str, str] = {
     "прочее": "other",
 }
 
-#: COCO-класс → (наш id категории, русское название предмета).
-#: Собирается из таблицы модели, чтобы не заводить вторую копию.
-COCO_ID_TO_CATEGORY: dict[int, tuple[str, str]] = {
-    coco_id: (_CATEGORY_ID_BY_RU[category_ru], object_name)
-    for coco_id, (category_ru, object_name) in COCO_CLASSES_RU.items()
-    if category_ru in _CATEGORY_ID_BY_RU
-}
 
-_UNKNOWN_CATEGORIES = {
-    category_ru
-    for category_ru, _ in COCO_CLASSES_RU.values()
-    if category_ru not in _CATEGORY_ID_BY_RU
-}
-if _UNKNOWN_CATEGORIES:  # pragma: no cover - страховка на случай правок таблицы
-    raise RuntimeError(
-        "В prediction/model_training.py появились категории, которых нет в справочнике: "
-        f"{sorted(_UNKNOWN_CATEGORIES)}. Добавьте их в _CATEGORY_ID_BY_RU."
-    )
+def _translate(table: dict[Any, tuple[str, str]], where: str) -> dict[Any, tuple[str, str]]:
+    """Переводит таблицу «ключ → (русская категория, предмет)» в id справочника."""
+    unknown = {category for category, _ in table.values()} - set(_CATEGORY_ID_BY_RU)
+    if unknown:
+        raise RuntimeError(
+            f"В {where} есть категории, которых нет в справочнике: {sorted(unknown)}. "
+            "Добавьте их в _CATEGORY_ID_BY_RU."
+        )
+    return {
+        key: (_CATEGORY_ID_BY_RU[category], name) for key, (category, name) in table.items()
+    }
+
+
+#: Класс RealWaste → (id категории, название предмета).
+CLASS_TO_CATEGORY = _translate(REALWASTE_CLASSES_RU, "prediction/train_classifier.py")
+#: COCO-класс → (id категории, название предмета). Нужен только для уточнения названия.
+COCO_ID_TO_CATEGORY = _translate(COCO_CLASSES_RU, "prediction/model_training.py")
 
 
 class MLClassifier:
-    """Реализация протокола `Classifier` поверх YOLOv8."""
+    """Классификатор материала + детектор для рамки."""
 
     name = "ml"
 
     def __init__(self) -> None:
-        self._model: Any | None = None
+        self._classifier: Any | None = None
+        self._detector: Any | None = None
 
-    def _load_model(self) -> Any:
-        if self._model is None:
+    # --- загрузка моделей -------------------------------------------------
+
+    def _load_classifier(self) -> Any:
+        if self._classifier is None:
             from ultralytics import YOLO
 
-            self._model = YOLO(settings.yolo_weights)
-        return self._model
+            weights = Path(settings.waste_classifier_weights)
+            if not weights.is_absolute():
+                weights = Path(__file__).resolve().parents[3] / weights
+            if not weights.exists():
+                raise RuntimeError(
+                    f"Не найдены веса классификатора: {weights}\n"
+                    "Обучите модель: python -m prediction.train_classifier"
+                )
+            self._classifier = YOLO(str(weights))
+        return self._classifier
+
+    def _load_detector(self) -> Any | None:
+        if not settings.detector_weights:
+            return None
+        if self._detector is None:
+            from ultralytics import YOLO
+
+            self._detector = YOLO(settings.detector_weights)
+        return self._detector
 
     def warmup(self) -> None:
-        """Загружает веса заранее — иначе первый пользователь ждёт лишние секунды."""
-        self._load_model()
+        """Грузит веса заранее — иначе первый пользователь ждёт лишние секунды."""
+        self._load_classifier()
+        self._load_detector()
 
-    def _run(self, image: bytes) -> Prediction | None:
-        """Синхронный инференс. Вызывается в отдельном потоке."""
-        from PIL import Image, UnidentifiedImageError
+    # --- инференс ---------------------------------------------------------
 
-        try:
-            picture = Image.open(io.BytesIO(image)).convert("RGB")
-        except (UnidentifiedImageError, OSError):
+    def _detect_box(self, picture: Any) -> tuple[Box, str, float] | None:
+        """Рамка вокруг предмета. Возвращает (рамка, id категории, уверенность)."""
+        detector = self._load_detector()
+        if detector is None:
             return None
 
-        width, height = picture.size
-        results = self._load_model().predict(
-            picture, conf=settings.yolo_confidence, verbose=False
+        results = detector.predict(
+            picture, conf=settings.detector_confidence, verbose=False
         )
         if not results:
             return None
-
         boxes = results[0].boxes
         if boxes is None or len(boxes) == 0:
             return None
@@ -98,48 +120,85 @@ class MLClassifier:
         class_ids = boxes.cls.cpu().numpy().astype(int)
         confidences = boxes.conf.cpu().numpy()
 
-        # Все распознанные объекты, от уверенных к сомнительным.
-        detections = sorted(
-            (
-                (float(confidences[i]), int(class_ids[i]), coordinates[i])
-                for i in range(len(class_ids))
-                if int(class_ids[i]) in COCO_ID_TO_CATEGORY
-            ),
-            key=lambda item: item[0],
-            reverse=True,
-        )
-        if not detections:
+        best = max(range(len(class_ids)), key=lambda i: float(confidences[i]))
+        class_id = int(class_ids[best])
+        if class_id not in COCO_ID_TO_CATEGORY:
             return None
 
-        confidence, class_id, xyxy = detections[0]
         category_id, object_name = COCO_ID_TO_CATEGORY[class_id]
+        confidence = float(confidences[best])
+        width, height = picture.size
+        left, top, right, bottom = (float(v) for v in coordinates[best])
 
-        left, top, right, bottom = (float(value) for value in xyxy)
+        # Ширина и высота ограничены снизу: схема Box требует строго положительных
+        # значений, а вырожденная рамка от детектора уронила бы запрос в 500.
         box = Box(
-            left=max(0.0, left / width * 100),
-            top=max(0.0, top / height * 100),
-            width=min(100.0, (right - left) / width * 100),
-            height=min(100.0, (bottom - top) / height * 100),
+            left=min(99.0, max(0.0, left / width * 100)),
+            top=min(99.0, max(0.0, top / height * 100)),
+            width=min(100.0, max(0.5, (right - left) / width * 100)),
+            height=min(100.0, max(0.5, (bottom - top) / height * 100)),
             label=f"{object_name} · {confidence:.2f}",
         )
+        return box, category_id, confidence
+
+    def _run(self, image: bytes) -> Prediction | None:
+        from PIL import Image, UnidentifiedImageError
+
+        try:
+            picture = Image.open(io.BytesIO(image)).convert("RGB")
+        except (UnidentifiedImageError, OSError):
+            return None
+
+        results = self._load_classifier().predict(picture, verbose=False)
+        if not results or results[0].probs is None:
+            return None
+
+        probs = results[0].probs
+        names = results[0].names
+        class_name = names[int(probs.top1)]
+        confidence = float(probs.top1conf)
+
+        if class_name not in CLASS_TO_CATEGORY:  # pragma: no cover - защита от чужих весов
+            return None
+        category_id, object_name = CLASS_TO_CATEGORY[class_name]
 
         tech = [
             TechRow(
-                label=f"детектор: {COCO_ID_TO_CATEGORY[detected_class][1]}",
-                score=f"{detected_confidence:.2f}",
+                label=f"классификатор: {names[int(index)]}",
+                score=f"{float(score):.2f}",
             )
-            for detected_confidence, detected_class, _ in detections[:3]
+            for index, score in zip(probs.top5[:3], probs.top5conf[:3])
         ]
+
+        # Детектор знает только классы COCO, а картон и текстиль в них не входят,
+        # поэтому на большинстве снимков рамки от него не будет. Как и в исходном
+        # прототипе, в этом случае показываем общую область анализа: классификатор
+        # смотрел на весь кадр.
+        boxes: list[Box] = [
+            Box(left=8, top=8, width=84, height=84, label="область анализа")
+        ]
+        detected = self._detect_box(picture)
+        # Детектор берём в дело, только если он согласен с классификатором.
+        # На снимках отходов он охотно выдаёт что-нибудь постороннее — на фото
+        # картона может «увидеть» хот-дог, — и рисовать рамку вокруг того, чего
+        # там нет, хуже, чем не рисовать её вовсе.
+        if detected is not None and detected[1] == category_id:
+            box, _, detected_confidence = detected
+            boxes = [box]
+            # Название от детектора конкретнее: «пластиковая бутылка» вместо «пластик».
+            object_name = box.label.split(" · ")[0]
+            tech.append(
+                TechRow(label=f"детектор: {object_name}", score=f"{detected_confidence:.2f}")
+            )
 
         return Prediction(
             category_id=category_id,
             object_name=object_name,
             confidence=min(0.99, confidence),
-            boxes=[box],
+            boxes=boxes,
             tech=tech,
         )
 
     async def predict(self, image: bytes, content_type: str) -> Prediction | None:
-        # YOLO считает на CPU и блокирует поток, поэтому уводим в пул —
-        # иначе на время инференса встаёт весь сервер.
+        # Инференс блокирует поток, поэтому уводим его в пул.
         return await asyncio.to_thread(self._run, image)

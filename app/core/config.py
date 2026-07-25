@@ -30,10 +30,15 @@ class Settings(BaseSettings):
     #: "ml" — YOLOv8 (см. app/services/recognition/registry.py).
     classifier: str = "stub"
 
-    #: Веса YOLO. Файла нет — ultralytics скачает при первом запуске (~87 МБ).
-    yolo_weights: str = "yolov8l.pt"
-    #: Порог уверенности детектора — ниже него объекты отбрасываются.
-    yolo_confidence: float = 0.5
+    #: Классификатор материала, обученный на RealWaste.
+    #: Обучить: python -m prediction.train_classifier
+    waste_classifier_weights: str = "prediction/waste_classifier.pt"
+
+    #: Детектор COCO — нужен только для рамки вокруг предмета и уточнения
+    #: названия. На выбор категории не влияет; пустая строка отключает его.
+    detector_weights: str = "yolov8n.pt"
+    #: Порог уверенности детектора — ниже него рамка не рисуется.
+    detector_confidence: float = 0.5
 
     #: Ограничения на загружаемое фото. Файл не сохраняется — только читается в память.
     max_upload_bytes: int = 10 * 1024 * 1024

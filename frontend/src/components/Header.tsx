@@ -4,6 +4,7 @@ const LINKS = [
   { to: "/scan", label: "Сканер" },
   { to: "/guide", label: "Справочник" },
   { to: "/profile", label: "Профиль" },
+  { to: "/model", label: "Модель" },
 ];
 
 export function Header() {

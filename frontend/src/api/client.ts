@@ -14,6 +14,7 @@ import type {
   GuideSearchResult,
   HealthResponse,
   HistoryResponse,
+  ModelInfo,
   Profile,
   ScanResult,
 } from "./types";
@@ -119,6 +120,9 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ categoryId }),
     }),
+
+  /** Сводка обучения: точность и потери по эпохам. */
+  model: () => request<ModelInfo>("/model"),
 
   profile: () => request<Profile>("/profile"),
 

@@ -178,3 +178,26 @@ export interface HealthResponse {
   /** "stub" — заглушка распознавания, "ml" — реальная модель. */
   classifier: string;
 }
+
+export interface EpochPoint {
+  epoch: number;
+  trainLoss?: number | null;
+  valLoss?: number | null;
+  top1?: number | null;
+  top5?: number | null;
+}
+
+/** Сводка обучения — то же, что обучение пишет в results.csv. */
+export interface ModelInfo {
+  /** "stub" — заглушка, "ml" — обученная модель. */
+  classifier: string;
+  trained: boolean;
+  dataset?: string | null;
+  model?: string | null;
+  /** ISO 8601 */
+  trainedAt?: string | null;
+  epochs?: number | null;
+  classes: string[];
+  best?: EpochPoint | null;
+  history: EpochPoint[];
+}
