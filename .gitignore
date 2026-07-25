@@ -25,3 +25,6 @@ realwaste-main/
 datasets/
 runs/
 extra-classes/*/
+
+# Независимый тестовый набор — качается скриптом.
+testset/*/

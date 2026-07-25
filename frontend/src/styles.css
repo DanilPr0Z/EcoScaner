@@ -2331,3 +2331,47 @@ a:hover {
   font-weight: 700;
   letter-spacing: 0;
 }
+
+/* Ход текущей эпохи. Эпоха идёт минуты, и без этого непонятно,
+   движется ли обучение и в верную ли сторону. */
+.progress {
+  margin-top: 28px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 18px 20px;
+}
+
+.progress__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.progress__loss {
+  font-size: 14px;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+.progress__loss b {
+  color: var(--ink);
+}
+
+.progress__bar {
+  height: 8px;
+  margin-top: 14px;
+  border-radius: 999px;
+  background: var(--surface-deep);
+  overflow: hidden;
+}
+
+.progress__fill {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 999px;
+  transition: width 0.4s ease-out;
+}

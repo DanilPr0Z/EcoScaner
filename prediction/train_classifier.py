@@ -192,6 +192,60 @@ def build_split(
     return counts
 
 
+def attach_progress(model, run_dir: Path, every: int = 5) -> None:
+    """Пишет ход обучения в progress.json после каждых нескольких батчей.
+
+    results.csv обновляется раз в эпоху, а эпоха идёт минуты — по нему не понять,
+    туда ли всё движется. Здесь пишется бегущее среднее лосса по батчам текущей
+    эпохи: если оно падает, направление верное, ждать конца эпохи не нужно.
+
+    Пишем через временный файл: читатель не должен наткнуться на половину записи.
+    """
+    import json
+
+    state = {"batch": 0}
+    target = run_dir / "progress.json"
+
+    def on_epoch_start(trainer) -> None:  # noqa: ANN001
+        state["batch"] = 0
+
+    def on_batch_end(trainer) -> None:  # noqa: ANN001
+        state["batch"] += 1
+        if state["batch"] % every and state["batch"] != 1:
+            return
+
+        losses = getattr(trainer, "tloss", None)
+        if isinstance(losses, dict):
+            loss = float(sum(float(v) for v in losses.values()))
+        elif losses is not None:
+            loss = float(losses)
+        else:
+            return
+
+        payload = {
+            "epoch": int(trainer.epoch) + 1,
+            "epochs": int(trainer.epochs),
+            "batch": state["batch"],
+            "batches": len(trainer.train_loader),
+            # Среднее по всем батчам эпохи, а не по последнему: отдельный батч
+            "meanLoss": round(loss, 4),  # скачет и о направлении ничего не говорит.
+        }
+        try:
+            run_dir.mkdir(parents=True, exist_ok=True)
+            tmp = target.with_suffix(".json.tmp")
+            tmp.write_text(json.dumps(payload), encoding="utf-8")
+            tmp.replace(target)
+        except OSError:
+            pass  # прогресс — вещь необязательная, ронять из-за него обучение незачем
+
+    def on_train_end(trainer) -> None:  # noqa: ANN001
+        target.unlink(missing_ok=True)
+
+    model.add_callback("on_train_epoch_start", on_epoch_start)
+    model.add_callback("on_train_batch_end", on_batch_end)
+    model.add_callback("on_train_end", on_train_end)
+
+
 def pick_device() -> str:
     import torch
 
@@ -240,6 +294,7 @@ def main() -> None:
     from ultralytics import YOLO
 
     model = YOLO(args.model)
+    attach_progress(model, PROJECT_ROOT / "runs" / "realwaste")
     model.train(
         data=str(args.split_dir),
         epochs=args.epochs,

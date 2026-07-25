@@ -188,6 +188,16 @@ export interface EpochPoint {
 }
 
 /** Сводка обучения — то же, что обучение пишет в results.csv. */
+/** Ход текущей эпохи обучения. */
+export interface TrainingProgress {
+  epoch: number;
+  epochs: number;
+  batch: number;
+  batches: number;
+  /** Среднее значение потерь по батчам текущей эпохи. Падает — идём верно. */
+  meanLoss: number;
+}
+
 export interface ModelInfo {
   /** "stub" — заглушка, "ml" — обученная модель. */
   classifier: string;
@@ -202,4 +212,5 @@ export interface ModelInfo {
   classes: string[];
   best?: EpochPoint | null;
   history: EpochPoint[];
+  progress?: TrainingProgress | null;
 }

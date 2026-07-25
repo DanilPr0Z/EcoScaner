@@ -28,6 +28,17 @@ class EpochPoint(CamelModel):
     top5: float | None = None
 
 
+class TrainingProgress(CamelModel):
+    """Ход текущей эпохи. Обновляется каждые несколько батчей."""
+
+    epoch: int
+    epochs: int
+    batch: int
+    batches: int
+    #: Среднее значение потерь по батчам текущей эпохи. Падает — идём верно.
+    mean_loss: float
+
+
 class ModelInfo(CamelModel):
     """Что за модель сейчас распознаёт и как она обучалась."""
 
@@ -42,6 +53,24 @@ class ModelInfo(CamelModel):
     classes: list[str] = []
     best: EpochPoint | None = None
     history: list[EpochPoint] = []
+    progress: TrainingProgress | None = None
+
+
+def _progress() -> TrainingProgress | None:
+    """Ход текущей эпохи — его пишет обучение после каждых нескольких батчей.
+
+    Эпоха идёт минуты, и по одним лишь итогам эпох не понять, туда ли всё
+    движется. Среднее по батчам показывает направление, не дожидаясь конца.
+    """
+    from prediction.metrics import DEFAULT_RUN_DIR
+
+    path = DEFAULT_RUN_DIR / "progress.json"
+    if not path.exists():
+        return None
+    try:
+        return TrainingProgress(**json.loads(path.read_text(encoding="utf-8")))
+    except (json.JSONDecodeError, OSError, TypeError, ValueError):
+        return None  # файл могли переписать в момент чтения — не беда, придёт следующий
 
 
 def _run_state() -> tuple[dict | None, bool]:
@@ -98,7 +127,12 @@ async def model_info() -> ModelInfo:
             ) from cause
 
     if live is None and not saved:
-        return ModelInfo(classifier=classifier, trained=False, in_progress=in_progress)
+        return ModelInfo(
+            classifier=classifier,
+            trained=False,
+            in_progress=in_progress,
+            progress=_progress(),
+        )
 
     if live is not None:
         raw = live
@@ -109,6 +143,7 @@ async def model_info() -> ModelInfo:
 
     return ModelInfo(
         in_progress=in_progress,
+        progress=_progress(),
         classifier=classifier,
         trained=classifier != "stub",
         dataset=raw.get("dataset"),

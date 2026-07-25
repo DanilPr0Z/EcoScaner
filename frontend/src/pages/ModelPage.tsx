@@ -81,6 +81,28 @@ export function ModelPage() {
             </>
           )}
         </p>
+
+      {info.progress && (
+        <div className="progress">
+          <div className="progress__head">
+            <span className="eyebrow">
+              Эпоха {info.progress.epoch} из {info.progress.epochs} · батч{" "}
+              {info.progress.batch} из {info.progress.batches}
+            </span>
+            <span className="progress__loss">
+              средние потери по батчам: <b>{info.progress.meanLoss.toFixed(4)}</b>
+            </span>
+          </div>
+          <div className="progress__bar">
+            <span
+              className="progress__fill"
+              style={{
+                width: `${((info.progress.epoch - 1 + info.progress.batch / info.progress.batches) / info.progress.epochs) * 100}%`,
+              }}
+            />
+          </div>
+        </div>
+      )}
       </section>
     );
   }
@@ -129,6 +151,29 @@ export function ModelPage() {
           </span>
         </div>
       </div>
+
+
+      {info.progress && (
+        <div className="progress">
+          <div className="progress__head">
+            <span className="eyebrow">
+              Эпоха {info.progress.epoch} из {info.progress.epochs} · батч{" "}
+              {info.progress.batch} из {info.progress.batches}
+            </span>
+            <span className="progress__loss">
+              средние потери по батчам: <b>{info.progress.meanLoss.toFixed(4)}</b>
+            </span>
+          </div>
+          <div className="progress__bar">
+            <span
+              className="progress__fill"
+              style={{
+                width: `${((info.progress.epoch - 1 + info.progress.batch / info.progress.batches) / info.progress.epochs) * 100}%`,
+              }}
+            />
+          </div>
+        </div>
+      )}
 
       <div className="model__meta">
         <span>
