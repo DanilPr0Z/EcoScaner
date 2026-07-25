@@ -1,15 +1,8 @@
 /**
- * Типы ответов BinGo API — для TS React фронтенда.
- *
- * Файл написан вручную по схемам pydantic (app/schemas). Если меняете схему
- * на бэкенде — поправьте и здесь. Актуальный контракт всегда виден в /docs.
- *
- * Пользователь анонимный: фронт один раз делает crypto.randomUUID(), кладёт
- * в localStorage и шлёт с каждым запросом в заголовке X-Device-Id.
+ * Типы ответов BinGo API. Соответствуют схемам pydantic в app/schemas —
+ * при изменении схемы на бэкенде правьте и здесь. Актуальный контракт
+ * всегда виден в http://localhost:8000/docs
  */
-
-export const API_BASE = "http://localhost:8000/api/v1";
-export const DEVICE_ID_HEADER = "X-Device-Id";
 
 export type CategoryId =
   | "plastic"
@@ -47,8 +40,10 @@ export interface Category extends CategoryBase {
   items: CategoryItem[];
 }
 
-/** Рамка объекта. Координаты — проценты от размеров изображения: сервер фото не хранит,
- *  фронт рисует рамку поверх своего локального превью. */
+/**
+ * Рамка объекта. Координаты — проценты от размеров изображения: сервер фото
+ * не хранит, поэтому рамка рисуется поверх локального превью.
+ */
 export interface Box {
   left: number;
   top: number;
@@ -99,14 +94,16 @@ export interface GuideSearchItem {
   categoryId: CategoryId;
   categoryName: string;
   categoryColor: string;
-  /** За какие поля строка попала в выдачу — можно подсветить причину. */
+  /** За какие поля строка попала в выдачу. */
   matchedIn: ItemMatchField[];
   /** Вес совпадения. Выдача уже отсортирована по нему. */
   score: number;
 }
 
-/** Категория, чей собственный текст отвечает запросу.
- *  Например, «метан» встречается только в подсказке про органику. */
+/**
+ * Категория, чей собственный текст отвечает запросу: например, «метан»
+ * встречается только в подсказке про органику.
+ */
 export interface GuideSearchCategory {
   id: CategoryId;
   name: string;
@@ -178,20 +175,6 @@ export interface Profile {
 export interface HealthResponse {
   status: "ok";
   appName: string;
-  /** "stub" — заглушка, "ml" — реальная модель. */
+  /** "stub" — заглушка распознавания, "ml" — реальная модель. */
   classifier: string;
 }
-
-/** Тело ошибки FastAPI. `detail` уже на русском и годится для показа пользователю. */
-export interface ApiError {
-  detail: string;
-}
-
-/**
- * Коды, которые стоит обработать на экране сканера:
- *  415 — не изображение
- *  413 — файл больше лимита
- *  400 — пустой файл или отсутствует X-Device-Id
- *  422 — предмет не распознан: показываем блок ошибки и кнопки ручного выбора,
- *        затем POST /scan/manual с выбранной categoryId
- */
