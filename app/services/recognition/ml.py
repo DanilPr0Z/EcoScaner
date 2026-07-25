@@ -70,20 +70,59 @@ class MLClassifier:
 
     # --- загрузка моделей -------------------------------------------------
 
-    def _load_classifier(self) -> Any:
+    def _load_classifier(self) -> list[Any]:
+        """Модели-классификаторы. Их может быть несколько — см. _classify.
+
+        Настройка принимает пути через запятую, поэтому одна модель и ансамбль
+        описываются одинаково, а переключение между ними не требует правок кода.
+        """
         if self._classifier is None:
             from ultralytics import YOLO
 
-            weights = Path(settings.waste_classifier_weights)
-            if not weights.is_absolute():
-                weights = Path(__file__).resolve().parents[3] / weights
-            if not weights.exists():
-                raise RuntimeError(
-                    f"Не найдены веса классификатора: {weights}\n"
-                    "Обучите модель: python -m prediction.train_classifier"
-                )
-            self._classifier = YOLO(str(weights))
+            root = Path(__file__).resolve().parents[3]
+            models = []
+            for item in settings.waste_classifier_weights.split(","):
+                weights = Path(item.strip())
+                if not weights.is_absolute():
+                    weights = root / weights
+                if not weights.exists():
+                    raise RuntimeError(
+                        f"Не найдены веса классификатора: {weights}\n"
+                        "Обучите модель: python -m prediction.train_classifier"
+                    )
+                models.append(YOLO(str(weights)))
+            self._classifier = models
         return self._classifier
+
+    def _classify(self, picture: Any) -> tuple[Any, dict[int, str]] | None:
+        """Вероятности классов. При нескольких моделях — среднее по ним.
+
+        Модели, обученные по-разному, ошибаются на разных снимках, поэтому
+        среднее оказывается точнее любой из них. Замер на независимом тесте
+        из 1200 снимков: боевая 92.5%, обученная с уличными снимками 92.3%,
+        среднее поровну — 93.5%. По металлу выигрыш крупнее всего: 81.3 и 86.7
+        поодиночке против 88.0 вместе, то есть смесь обгоняет обе составляющие.
+
+        Веса намеренно равные. Подбор долей давал на своей половине теста 94%,
+        а на чужой 92%, и сами доли между половинами разъезжались — то есть
+        подбирался шум. Равные доли подбирать нечего, и они выигрывают
+        на обеих половинах сразу.
+        """
+        import numpy as np
+
+        summed = None
+        names: dict[int, str] | None = None
+        for model in self._load_classifier():
+            results = model.predict(picture, verbose=False)
+            if not results or results[0].probs is None:
+                return None
+            values = results[0].probs.data.cpu().numpy()
+            summed = values if summed is None else summed + values
+            names = results[0].names
+
+        if summed is None or names is None:
+            return None
+        return summed / len(self._classifier), names
 
     def _load_detector(self) -> Any | None:
         if not settings.detector_weights:
@@ -149,25 +188,23 @@ class MLClassifier:
         except (UnidentifiedImageError, OSError):
             return None
 
-        results = self._load_classifier().predict(picture, verbose=False)
-        if not results or results[0].probs is None:
+        classified = self._classify(picture)
+        if classified is None:
             return None
+        probs, names = classified
 
-        probs = results[0].probs
-        names = results[0].names
-        class_name = names[int(probs.top1)]
-        confidence = float(probs.top1conf)
+        best = int(probs.argmax())
+        class_name = names[best]
+        confidence = float(probs[best])
 
         if class_name not in CLASS_TO_CATEGORY:  # pragma: no cover - защита от чужих весов
             return None
         category_id, object_name = CLASS_TO_CATEGORY[class_name]
 
+        top = sorted(range(len(probs)), key=lambda i: -probs[i])[:3]
         tech = [
-            TechRow(
-                label=f"классификатор: {names[int(index)]}",
-                score=f"{float(score):.2f}",
-            )
-            for index, score in zip(probs.top5[:3], probs.top5conf[:3])
+            TechRow(label=f"классификатор: {names[i]}", score=f"{float(probs[i]):.2f}")
+            for i in top
         ]
 
         # Рамка появляется, только когда детектор реально нашёл предмет.

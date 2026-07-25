@@ -9,10 +9,20 @@ alembic upgrade head
 
 # Модель включена, но весов нет — это остановит контейнер сразу, а не при
 # первом сканировании, когда ошибку увидит уже пользователь.
-if [ "${CLASSIFIER:-stub}" = "ml" ] && [ ! -f "${WASTE_CLASSIFIER_WEIGHTS:-prediction/waste_classifier.pt}" ]; then
-  echo "CLASSIFIER=ml, но файла весов нет: ${WASTE_CLASSIFIER_WEIGHTS:-prediction/waste_classifier.pt}" >&2
-  echo "Скопируйте его на сервер (см. deploy/README.md) или поставьте CLASSIFIER=stub." >&2
-  exit 1
+#
+# Путей может быть несколько через запятую: ответы моделей усредняются.
+# Проверяем каждый — иначе строка «a.pt,b.pt» просто не найдётся как файл,
+# и понять из сообщения, какого именно файла не хватает, будет нельзя.
+if [ "${CLASSIFIER:-stub}" = "ml" ]; then
+  IFS=','
+  for weights in ${WASTE_CLASSIFIER_WEIGHTS:-prediction/waste_classifier.pt}; do
+    if [ ! -f "$weights" ]; then
+      echo "CLASSIFIER=ml, но файла весов нет: $weights" >&2
+      echo "Скопируйте его на сервер (см. deploy/README.md) или поставьте CLASSIFIER=stub." >&2
+      exit 1
+    fi
+  done
+  unset IFS
 fi
 
 # Один воркер: модель занимает около гигабайта, и каждый следующий воркер
