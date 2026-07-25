@@ -308,6 +308,164 @@ def attach_progress(model, run_dir: Path, every: int = 5) -> None:
     model.add_callback("on_train_end", on_train_end)
 
 
+class CategoryAwareLoss:
+    """Штрафует за ошибку категории отдельно от ошибки класса.
+
+    Мы обучаем на десять классов датасета, а показываем семь категорий
+    справочника, и это не одно и то же. Обычная кросс-энтропия штрафует
+    «Paper вместо Cardboard» ровно так же, как «Metal вместо Glass». Первая
+    ошибка нам ничего не стоит — обе ведут в «бумагу», пользователь её даже
+    не увидит. Вторая отправляет человека к неверному баку.
+
+    Значит, обучение оптимизирует не то, что мы показываем. Здесь к обычным
+    потерям добавляется второе слагаемое — та же кросс-энтропия, но по семи
+    категориям. Вероятность категории собирается из вероятностей её классов
+    (logsumexp по логитам — это и есть логарифм суммы вероятностей), поэтому
+    десятиклассовая голова остаётся на месте: она нужна интерфейсу, который
+    показывает не только категорию, но и предмет — «бутылка», «банка».
+
+    Побочный, но важный эффект: «прочее» собрано из Textile Trash (1615) и
+    Miscellaneous Trash (697), а «бумага» — из Paper и Cardboard. Путаница
+    внутри пары становится бесплатной, то есть самый малочисленный класс
+    датасета перестаёт быть отдельной мишенью и работает в паре с соседом.
+    """
+
+    def __init__(self, groups: list[list[int]], weights=None, strength: float = 1.0):  # noqa: ANN001
+        self.groups = groups
+        self.weights = weights
+        self.strength = strength
+        self._category_of = None
+
+    def __call__(self, preds, batch):  # noqa: ANN001
+        import torch
+        import torch.nn.functional as F  # noqa: N812
+
+        logits = preds[1] if isinstance(preds, (list, tuple)) else preds
+        target = batch["cls"]
+
+        if self._category_of is None or self._category_of.device != logits.device:
+            lookup = torch.empty(logits.shape[1], dtype=torch.long)
+            for index, members in enumerate(self.groups):
+                for member in members:
+                    lookup[member] = index
+            self._category_of = lookup.to(logits.device)
+            if self.weights is not None:
+                self.weights = self.weights.to(logits.device)
+
+        fine = F.cross_entropy(logits, target, weight=self.weights, reduction="mean")
+
+        # Логит категории — логарифм суммы вероятностей её классов.
+        coarse_logits = torch.stack(
+            [logits[:, members].logsumexp(dim=1) for members in self.groups], dim=1
+        )
+        coarse = F.cross_entropy(coarse_logits, self._category_of[target], reduction="mean")
+
+        loss = fine + self.strength * coarse
+        return loss, {"loss": loss.detach()}
+
+
+def attach_category_loss(model, strength: float, balance: float) -> None:
+    """Заменяет функцию потерь на привязанную к категориям.
+
+    Порядок классов берём не из наших словарей, а у самого обучения: папки
+    читаются по алфавиту, и полагаться на совпадение с нашим порядком нельзя —
+    достаточно один раз добавить класс, чтобы всё молча разъехалось.
+
+    `balance` выравнивает вклад редких классов: вес пропорционален
+    (1/размер)^balance. При 0 веса равны, при 1 полностью компенсируют перекос.
+    По умолчанию 0 — категорийного слагаемого обычно достаточно, а лишние
+    ручки мешают понять, что именно дало эффект.
+    """
+    if strength <= 0:
+        return
+
+    def on_train_start(trainer) -> None:  # noqa: ANN001
+        import collections
+
+        import torch
+
+        from ultralytics.utils.torch_utils import unwrap_model
+
+        names = trainer.data["names"]  # {индекс: имя класса}
+        order = [names[i] for i in range(len(names))]
+
+        unknown = [n for n in order if n not in WASTE_CLASSES_RU]
+        if unknown:
+            raise SystemExit(f"Классы без категории: {unknown}")
+
+        grouped: dict[str, list[int]] = collections.defaultdict(list)
+        for index, name in enumerate(order):
+            grouped[WASTE_CLASSES_RU[name][0]].append(index)
+        groups = [grouped[key] for key in sorted(grouped)]
+
+        weights = None
+        if balance > 0:
+            counts = collections.Counter()
+            for _, label in trainer.train_loader.dataset.samples:
+                counts[int(label)] += 1
+            raw = torch.tensor(
+                [(1.0 / max(counts[i], 1)) ** balance for i in range(len(order))],
+                dtype=torch.float32,
+            )
+            weights = raw / raw.mean()
+
+        unwrap_model(trainer.model).criterion = CategoryAwareLoss(groups, weights, strength)
+
+        readable = ", ".join(
+            f"{key} ({len(grouped[key])})" for key in sorted(grouped)
+        )
+        print(f"Потери привязаны к категориям: {readable}")
+        if weights is not None:
+            print("Веса классов: " + ", ".join(
+                f"{order[i]} {float(weights[i]):.2f}" for i in range(len(order))
+            ))
+
+    model.add_callback("on_train_start", on_train_start)
+
+
+def attach_category_checkpoint(model, run_dir: Path) -> None:
+    """Сохраняет веса лучшей эпохи по точности категорий, а не классов.
+
+    Ultralytics выбирает лучшую эпоху по top-1 среди десяти классов. Нам важна
+    доля верных категорий, а это другое число: эпоха может выиграть на
+    различении Paper и Cardboard и проиграть там, где для человека всё решается.
+
+    Считаем по ответам, которые валидатор уже сложил, — лишнего прохода нет.
+    """
+    best = {"score": -1.0}
+
+    def on_fit_epoch_end(trainer) -> None:  # noqa: ANN001
+        import shutil as _shutil
+
+        import torch
+
+        validator = getattr(trainer, "validator", None)
+        if not validator or not getattr(validator, "pred", None):
+            return
+
+        names = trainer.data["names"]
+        category_of = {
+            index: WASTE_CLASSES_RU[names[index]][0]
+            for index in range(len(names))
+            if names[index] in WASTE_CLASSES_RU
+        }
+
+        predicted = torch.cat([p[:, 0] for p in validator.pred]).tolist()
+        actual = torch.cat(validator.targets).tolist()
+        hits = sum(
+            category_of.get(p) == category_of.get(a) for p, a in zip(predicted, actual)
+        )
+        score = hits / max(len(actual), 1)
+
+        source = run_dir / "weights" / "last.pt"
+        if score > best["score"] and source.exists():
+            best["score"] = score
+            _shutil.copy2(source, run_dir / "weights" / "best_category.pt")
+        print(f"      точность категорий: {score:.4f} (лучшая {best['score']:.4f})")
+
+    model.add_callback("on_fit_epoch_end", on_fit_epoch_end)
+
+
 def pick_device() -> str:
     import torch
 
@@ -401,11 +559,29 @@ def main() -> None:
         ),
     )
     parser.add_argument(
+        "--category-loss",
+        type=float,
+        default=1.0,
+        help=(
+            "вес второго слагаемого потерь — ошибки категории справочника. "
+            "0 отключает и возвращает обычное обучение по десяти классам"
+        ),
+    )
+    parser.add_argument(
+        "--balance",
+        type=float,
+        default=0.0,
+        help=(
+            "насколько выравнивать вклад редких классов: вес ~ (1/размер)^balance. "
+            "0 — веса равны, 1 — перекос компенсируется полностью"
+        ),
+    )
+    parser.add_argument(
         "--full-precision",
         action="store_true",
         help=(
             "считать в float32. По умолчанию на видеоядре Apple включается "
-            "bfloat16: он быстрее примерно на 14% и на точность не влияет — "
+            "bfloat16: он быстрее примерно на 14%% и на точность не влияет — "
             "диапазон чисел тот же, веса всё равно хранятся в float32"
         ),
     )
@@ -439,6 +615,8 @@ def main() -> None:
 
     model = YOLO(args.model)
     attach_extra_augmentation(model, args.grayscale, args.blur, args.rotate, args.jitter)
+    attach_category_loss(model, args.category_loss, args.balance)
+    attach_category_checkpoint(model, PROJECT_ROOT / "runs" / "realwaste")
     attach_progress(model, PROJECT_ROOT / "runs" / "realwaste")
     model.train(
         data=str(args.split_dir),
@@ -455,7 +633,14 @@ def main() -> None:
         **AUGMENTATION,
     )
 
-    best = PROJECT_ROOT / "runs" / "realwaste" / "weights" / "best.pt"
+    # Берём лучшую по категориям эпоху, если она посчиталась: ultralytics выбирает
+    # лучшую по top-1 среди десяти классов, а нам важна доля верных категорий.
+    weights_dir = PROJECT_ROOT / "runs" / "realwaste" / "weights"
+    best = weights_dir / "best_category.pt"
+    if not best.exists():
+        best = weights_dir / "best.pt"
+    else:
+        print(f"Берём лучшую эпоху по точности категорий: {best.name}")
     if not best.exists():
         raise SystemExit(f"Обучение прошло, но веса не найдены: {best}")
 
