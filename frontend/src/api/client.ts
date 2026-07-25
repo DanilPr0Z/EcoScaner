@@ -1,11 +1,12 @@
 /**
- * Клиент BinGo API для TS React фронтенда.
+ * Клиент BinGo API.
  *
- * Положите этот файл и `api-types.ts` в `src/api/` вашего React-проекта.
- * Базовый адрес берётся из `VITE_API_URL`, по умолчанию — локальный бэкенд.
+ * В разработке запросы идут на относительный /api/v1 — Vite проксирует их
+ * на FastAPI (см. vite.config.ts), поэтому CORS не участвует. Для сборки под
+ * отдельный домен задайте VITE_API_URL.
  *
  * Пользователь анонимный: при первом обращении генерируется UUID, кладётся
- * в localStorage и дальше уходит в заголовке X-Device-Id с каждым запросом.
+ * в localStorage и уходит в заголовке X-Device-Id с каждым запросом.
  */
 
 import type {
@@ -15,12 +16,10 @@ import type {
   HistoryResponse,
   Profile,
   ScanResult,
-} from "./api-types";
-import { API_BASE, DEVICE_ID_HEADER } from "./api-types";
+} from "./types";
 
-const BASE_URL =
-  (import.meta as { env?: Record<string, string> }).env?.VITE_API_URL ?? API_BASE;
-
+const BASE_URL = import.meta.env.VITE_API_URL ?? "/api/v1";
+const DEVICE_ID_HEADER = "X-Device-Id";
 const DEVICE_STORAGE_KEY = "bingo.deviceId";
 
 /** UUID этого браузера. Создаётся один раз и переживает перезагрузки. */
@@ -33,8 +32,10 @@ export function getDeviceId(): string {
   return id;
 }
 
-/** Ошибка запроса. `message` — текст из поля `detail`, уже на русском:
- *  его можно показывать пользователю как есть. */
+/**
+ * Ошибка запроса. `message` — текст из поля `detail`, уже на русском:
+ * его можно показывать пользователю как есть.
+ */
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -44,12 +45,12 @@ export class ApiError extends Error {
     this.name = "ApiError";
   }
 
-  /** Предмет на фото не распознан — показываем ручной выбор категории. */
+  /** Предмет на фото не распознан — предлагаем выбрать категорию вручную. */
   get isUnrecognized(): boolean {
     return this.status === 422;
   }
 
-  /** Файл не подошёл: не изображение или слишком большой. */
+  /** Файл не подошёл: не изображение, пустой или слишком большой. */
   get isBadImage(): boolean {
     return this.status === 415 || this.status === 413 || this.status === 400;
   }
@@ -62,7 +63,12 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     headers.set("Content-Type", "application/json");
   }
 
-  const response = await fetch(`${BASE_URL}${path}`, { ...init, headers });
+  let response: Response;
+  try {
+    response = await fetch(`${BASE_URL}${path}`, { ...init, headers });
+  } catch {
+    throw new ApiError(0, "Сервер недоступен. Проверьте, запущен ли бэкенд.");
+  }
 
   if (!response.ok) {
     let detail = `Запрос не удался (${response.status})`;
@@ -86,15 +92,14 @@ export const api = {
   /** Весь справочник: 7 категорий с предметами. Грузится один раз при старте. */
   categories: () => request<Category[]>("/categories"),
 
-  category: (id: string) => request<Category>(`/categories/${id}`),
-
   /** Поиск по всему тексту справочника: названия, примечания, описания категорий. */
-  search: (query: string, limit = 50) =>
+  search: (query: string, limit = 50, signal?: AbortSignal) =>
     request<GuideSearchResult>(
       `/guide/search?q=${encodeURIComponent(query)}&limit=${limit}`,
+      { signal },
     ),
 
-  /** Распознать фото. Бросает ApiError с isUnrecognized при 422. */
+  /** Распознать фото. При 422 бросает ApiError с isUnrecognized. */
   scan: (file: File | Blob) => {
     const form = new FormData();
     form.append("file", file);
@@ -108,7 +113,7 @@ export const api = {
       body: JSON.stringify({ categoryId }),
     }),
 
-  /** «Модель ошиблась» — перенести скан в верную категорию. */
+  /** «Модель ошиблась» — перенести уже сделанный скан в верную категорию. */
   correctScan: (scanId: string, categoryId: string) =>
     request<ScanResult>(`/scan/${scanId}/correct`, {
       method: "POST",
@@ -130,7 +135,10 @@ export function frameToFile(video: HTMLVideoElement): Promise<File> {
   const canvas = document.createElement("canvas");
   canvas.width = video.videoWidth || 640;
   canvas.height = video.videoHeight || 480;
-  canvas.getContext("2d")!.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+  const context = canvas.getContext("2d");
+  if (!context) return Promise.reject(new Error("Браузер не дал доступ к canvas"));
+  context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
   return new Promise((resolve, reject) => {
     canvas.toBlob(
