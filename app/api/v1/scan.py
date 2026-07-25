@@ -10,6 +10,7 @@ from app.schemas.scan import CorrectionRequest, ManualScanRequest, ScanResult
 from app.services.gamification import award_points
 from app.services.recognition.base import Prediction
 from app.services.recognition.registry import get_classifier
+from app.services import uploads
 
 router = APIRouter(prefix="/scan", tags=["scan"])
 
@@ -90,24 +91,40 @@ async def scan_image(
 ) -> ScanResult:
     """Распознаёт предмет на фото и записывает сканирование в историю."""
     image = await _read_image(file)
+    content_type = file.content_type or ""
+    digest = uploads.image_hash(image)
 
-    prediction = await get_classifier().predict(image, file.content_type or "")
-    if prediction is None:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=UNRECOGNIZED_MESSAGE,
-        )
+    # Этот же кадр уже исправляли — значит верный ответ известен, и спрашивать
+    # модель незачем: иначе пользователь правил бы одно и то же после каждой
+    # перезагрузки страницы.
+    corrected = await uploads.previous_correction(session, digest)
+    if corrected is not None:
+        prediction = None
+        category = await _require_category(session, corrected)
+        object_name = "по вашему исправлению"
+        confidence = 1.0
+    else:
+        prediction = await get_classifier().predict(image, content_type)
+        if prediction is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=UNRECOGNIZED_MESSAGE,
+            )
+        category = await _require_category(session, prediction.category_id)
+        object_name = prediction.object_name
+        confidence = prediction.confidence
 
-    category = await _require_category(session, prediction.category_id)
     awarded = await award_points(session, device, category.id)
 
     scan = Scan(
         device_id=device.id,
         category_id=category.id,
-        object_name=prediction.object_name,
-        confidence=prediction.confidence,
-        is_manual=False,
+        object_name=object_name,
+        confidence=confidence,
+        is_manual=corrected is not None,
         points_awarded=awarded,
+        image_hash=digest,
+        image_path=uploads.save(image, digest, content_type),
     )
     session.add(scan)
     await session.commit()

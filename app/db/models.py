@@ -89,6 +89,11 @@ class Scan(Base):
     confidence: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     is_manual: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     points_awarded: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    #: SHA-256 снимка. По нему находим прежние исправления того же кадра —
+    #: пользователь не должен исправлять одно и то же дважды.
+    image_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    #: Файл снимка относительно каталога хранилища. None — снимок не сохраняли.
+    image_path: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, nullable=False, index=True
     )

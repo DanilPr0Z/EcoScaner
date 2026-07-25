@@ -2452,3 +2452,15 @@ a:hover {
   height: 100%;
   object-fit: cover;
 }
+
+/* Подтверждение после исправления: человек должен видеть, что его правка
+   не улетела в пустоту, а пойдёт в дело. */
+.scan__hint {
+  margin: 16px 0 0;
+  padding: 12px 14px;
+  background: var(--chip);
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
