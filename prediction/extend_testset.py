@@ -16,12 +16,14 @@ battery, biological, clothes, shoes. Проверка отпечатков по�
 
 * органика — `Voxel51/food-waste-dataset`, пищевые отходы в лотках и баках;
 * прочее — `Cleanlab/footwear-demo`, обувь (по справочнику это «прочее»:
-  подошва, ткань и клей неразделимы).
+  подошва, ткань и клей неразделимы);
+* особые отходы — `viola77data/recycling-dataset`, только метка `batteries`.
 
-Батареек независимого источника найти не удалось: всё, что есть на HuggingFace
-под этой меткой, — либо телеметрия аккумуляторов, либо копии того же
-garbage-набора. Значит, «особые отходы» остаются неизмеренными, и говорить
-про их точность мы права не имеем.
+Батарейки нашлись не сразу: поиск по слову battery выдаёт либо телеметрию
+аккумуляторов, либо копии garbage-набора. Нужный источник нашёлся по слову
+recycling — и опознать его как чужой помогла раскладка классов: «disposable
+plates», «paper towel», «takeaway cups» не встречаются ни в одном из наборов,
+на которых мы учились.
 
     python -m prediction.extend_testset
     python -m prediction.extend_testset --per-class 150
@@ -60,6 +62,16 @@ SOURCES = [
         "dataset": "Cleanlab/footwear-demo",
         "target": "Textile Trash",
         "labels": None,
+    },
+    {
+        # Одиннадцать классов, среди них «disposable plates», «paper towel»,
+        # «takeaway cups» — такой раскладки нет ни в одном garbage-наборе,
+        # значит это не очередное их зеркало. Берём только батарейки:
+        # остальные пять классов уже измеряются на dmedhi, а мешать источники
+        # в одну цифру нельзя — станет непонятно, что изменилось.
+        "dataset": "viola77data/recycling-dataset",
+        "target": "Battery",
+        "labels": {"batteries"},
     },
 ]
 
