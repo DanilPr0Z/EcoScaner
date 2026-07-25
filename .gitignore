@@ -9,3 +9,6 @@ __pycache__/
 *.db-wal
 *.db-shm
 *.db-journal
+
+# Локальная конфигурация Claude Code — не часть проекта.
+.claude/
