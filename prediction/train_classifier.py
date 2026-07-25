@@ -367,6 +367,12 @@ class CategoryAwareLoss:
             label_smoothing=self.smoothing,
         )
 
+        # При нулевом весе категорийное слагаемое не считаем вовсе: класс
+        # используется и ради одного сглаживания меток, а logsumexp по группам
+        # на каждом батче — не та цена, которую стоит платить впустую.
+        if self.strength <= 0:
+            return fine, {"loss": fine.detach()}
+
         # Логит категории — логарифм суммы вероятностей её классов.
         coarse_logits = torch.stack(
             [logits[:, members].logsumexp(dim=1) for members in self.groups], dim=1
@@ -396,7 +402,12 @@ def attach_category_loss(
     По умолчанию 0 — категорийного слагаемого обычно достаточно, а лишние
     ручки мешают понять, что именно дало эффект.
     """
-    if strength <= 0:
+    # Раньше здесь стоял ранний выход при strength <= 0 — и он молча съедал
+    # сглаживание меток: оно живёт внутри CategoryAwareLoss, а обработчик
+    # при выключенных категорийных потерях просто не навешивался. Флаг
+    # --label-smoothing принимался, печатался в справке и не делал ничего.
+    # Та же болезнь, что с аугментациями ultralytics: параметр есть, эффекта нет.
+    if strength <= 0 and smoothing <= 0 and balance <= 0:
         return
 
     def on_train_start(trainer) -> None:  # noqa: ANN001
@@ -433,10 +444,16 @@ def attach_category_loss(
             groups, weights, strength, smoothing
         )
 
-        readable = ", ".join(
-            f"{key} ({len(grouped[key])})" for key in sorted(grouped)
-        )
-        print(f"Потери привязаны к категориям: {readable}")
+        # Печатаем ровно то, что включено. Сообщение про категории при нулевом
+        # весе сбивало бы с толку — а именно так и теряются молча выключенные
+        # настройки: в логе написано одно, считается другое.
+        if strength > 0:
+            readable = ", ".join(
+                f"{key} ({len(grouped[key])})" for key in sorted(grouped)
+            )
+            print(f"Потери привязаны к категориям ({strength}): {readable}")
+        if smoothing > 0:
+            print(f"Сглаживание меток: {smoothing}")
         if weights is not None:
             print("Веса классов: " + ", ".join(
                 f"{order[i]} {float(weights[i]):.2f}" for i in range(len(order))
