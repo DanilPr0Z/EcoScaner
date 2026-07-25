@@ -192,6 +192,51 @@ def build_split(
     return counts
 
 
+def attach_extra_augmentation(model, grayscale: float, blur: float) -> None:
+    """Добавляет обесцвечивание и размытие — их нет в наборе ultralytics.
+
+    Классификация в ultralytics умеет кадрирование, отражения, RandAugment,
+    цветовой джиттер и стирание. Ни обесцвечивания, ни размытия среди них нет,
+    поэтому подмешиваем свои прямо в набор преобразований датасета.
+
+    Зачем именно эти два:
+
+    * обесцвечивание бьёт по главной путанице — бумага и прозрачная бутылка
+      похожи по цвету, и пока цвет доступен, модель цепляется за него. Убирая
+      цвет у части снимков, мы заставляем её смотреть на форму и блики;
+    * размытие делает модель устойчивой к смазанным кадрам с телефона. Радиус
+      небольшой: сильное размытие съело бы фактуру, а она как раз и отличает
+      бумагу от пластика.
+    """
+
+    def on_train_start(trainer) -> None:  # noqa: ANN001
+        from torchvision import transforms as T
+
+        dataset = trainer.train_loader.dataset
+        operations = list(dataset.torch_transforms.transforms)
+
+        extra = []
+        if grayscale > 0:
+            extra.append(T.RandomGrayscale(p=grayscale))
+        if blur > 0:
+            extra.append(
+                T.RandomApply([T.GaussianBlur(kernel_size=5, sigma=(0.1, 1.5))], p=blur)
+            )
+        if not extra:
+            return
+
+        # Вставляем до перевода в тензор: обе операции работают с картинкой.
+        index = next(
+            (i for i, op in enumerate(operations) if op.__class__.__name__ == "ToTensor"),
+            len(operations),
+        )
+        operations[index:index] = extra
+        dataset.torch_transforms = T.Compose(operations)
+        print(f"Добавлено: обесцвечивание p={grayscale}, размытие p={blur}")
+
+    model.add_callback("on_train_start", on_train_start)
+
+
 def attach_progress(model, run_dir: Path, every: int = 5) -> None:
     """Пишет ход обучения в progress.json после каждых нескольких батчей.
 
@@ -272,6 +317,18 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--device", default=None, help="cpu, mps или номер GPU")
     parser.add_argument(
+        "--grayscale",
+        type=float,
+        default=0.15,
+        help="доля снимков, обесцвечиваемых при обучении (0 — выключить)",
+    )
+    parser.add_argument(
+        "--blur",
+        type=float,
+        default=0.15,
+        help="доля снимков, которые слегка размываются (0 — выключить)",
+    )
+    parser.add_argument(
         "--workers",
         type=int,
         default=None,
@@ -305,6 +362,7 @@ def main() -> None:
     from ultralytics import YOLO
 
     model = YOLO(args.model)
+    attach_extra_augmentation(model, args.grayscale, args.blur)
     attach_progress(model, PROJECT_ROOT / "runs" / "realwaste")
     model.train(
         data=str(args.split_dir),
