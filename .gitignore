@@ -34,3 +34,6 @@ storage/
 
 # Файл настроек сервера — не в git: может содержать секреты площадки.
 .env.production
+
+# Модель-кандидат до проверки.
+prediction/waste_classifier.candidate.pt
