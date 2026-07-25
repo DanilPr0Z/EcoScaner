@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, api, frameToFile } from "../api/client";
 import type { ScanResult } from "../api/types";
 import { inkOn, withAlpha } from "../lib/format";
+import { SHOW_DEV_INFO } from "../config";
 import { useCategories } from "../state/CategoriesProvider";
 
 export function ScanPage() {
@@ -74,6 +75,23 @@ export function ScanPage() {
     [analyze, showPreview, stopCamera],
   );
 
+  // Вставка из буфера: Cmd/Ctrl+V со скриншотом или скопированным файлом.
+  // Слушаем на документе, а не на поле — чтобы не требовать предварительного клика.
+  useEffect(() => {
+    const onPaste = (event: ClipboardEvent) => {
+      const item = Array.from(event.clipboardData?.items ?? []).find((entry) =>
+        entry.type.startsWith("image/"),
+      );
+      if (!item) return;
+
+      event.preventDefault();
+      handleFile(item.getAsFile());
+    };
+
+    document.addEventListener("paste", onPaste);
+    return () => document.removeEventListener("paste", onPaste);
+  }, [handleFile]);
+
   const startCamera = useCallback(async () => {
     setError("");
     setResult(null);
@@ -117,9 +135,20 @@ export function ScanPage() {
       setBusy(true);
       setBusyText("Сохраняем ваш выбор…");
       try {
-        const next = result
-          ? await api.correctScan(result.scanId, categoryId)
-          : await api.scanManual(categoryId);
+        let next: ScanResult;
+        if (result) {
+          try {
+            next = await api.correctScan(result.scanId, categoryId);
+          } catch (cause) {
+            // Скана нет на сервере — например, база пересоздавалась, пока
+            // страница была открыта. Намерение пользователя от этого не меняется:
+            // записываем выбор как ручное сканирование, а не упираемся в ошибку.
+            if ((cause as ApiError).status !== 404) throw cause;
+            next = await api.scanManual(categoryId);
+          }
+        } else {
+          next = await api.scanManual(categoryId);
+        }
         setResult(next);
         setError("");
       } catch (cause) {
@@ -132,13 +161,16 @@ export function ScanPage() {
   );
 
   const category = result?.category;
+  // На Mac буфер вставляется по Cmd, на остальных — по Ctrl.
+  const pasteHint = navigator.platform.toLowerCase().includes("mac") ? "⌘V" : "Ctrl+V";
 
   return (
     <section className="shell page">
       <h1 className="page__title">Сканер отходов</h1>
       <p className="page__lead">
-        Загрузите фото одного предмета — так распознавание точнее. Фото обрабатывается
-        на сервере и не сохраняется.
+        Загрузите фото одного предмета — так распознавание точнее. Можно перетащить
+        файл, вставить из буфера или снять на камеру. Фото обрабатывается на сервере
+        и не сохраняется.
       </p>
 
       <div className="scan__grid">
@@ -165,8 +197,9 @@ export function ScanPage() {
                 <span className="dropzone__icon" />
                 <span className="dropzone__title">Перетащите фото сюда</span>
                 <span className="dropzone__hint">
-                  или нажмите, чтобы выбрать файл · JPG, PNG, WEBP
+                  нажмите, чтобы выбрать файл, или вставьте из буфера ({pasteHint})
                 </span>
+                <span className="dropzone__hint">JPG, PNG, WEBP</span>
               </div>
             )}
 
@@ -356,7 +389,7 @@ export function ScanPage() {
                   })}
                 </div>
 
-                {result.tech.length > 0 && (
+                {SHOW_DEV_INFO && result.tech.length > 0 && (
                   <div className="tech">
                     <span className="eyebrow" style={{ display: "block", marginBottom: 10 }}>
                       Что увидела нейросеть
@@ -369,6 +402,8 @@ export function ScanPage() {
                     ))}
                   </div>
                 )}
+
+                {error && <p className="scan__inline-error">{error}</p>}
 
                 <div
                   style={{
@@ -384,7 +419,7 @@ export function ScanPage() {
             </>
           )}
 
-          {error && (
+          {error && !result && (
             <div className="error-card">
               <h3 className="error-card__title">Не удалось распознать</h3>
               <p className="error-card__text">{error}</p>

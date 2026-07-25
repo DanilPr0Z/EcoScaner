@@ -2300,3 +2300,34 @@ a:hover {
   color: var(--ink);
   background: var(--chip);
 }
+
+/* Ошибка при исправлении категории — рядом с кнопками, а не отдельной карточкой:
+   результат на экране уже есть, и «Не удалось распознать» ввело бы в заблуждение. */
+.scan__inline-error {
+  margin: 16px 0 0;
+  padding: 12px 14px;
+  background: var(--error-bg);
+  border: 1px solid var(--error-line);
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--error-text);
+}
+
+/* Метка «обучение идёт» рядом с заголовком: цифры на странице живые,
+   и это должно быть видно сразу, иначе их примут за окончательные. */
+.model__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 16px;
+  vertical-align: middle;
+  background: var(--chip);
+  color: var(--accent);
+  border-radius: 999px;
+  padding: 7px 14px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0;
+}

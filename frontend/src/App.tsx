@@ -5,6 +5,7 @@ import { Header } from "./components/Header";
 import { GuidePage } from "./pages/GuidePage";
 import { HomePage } from "./pages/HomePage";
 import { ModelPage } from "./pages/ModelPage";
+import { SHOW_DEV_INFO } from "./config";
 import { ProfilePage } from "./pages/ProfilePage";
 import { ScanPage } from "./pages/ScanPage";
 import { CategoriesProvider } from "./state/CategoriesProvider";
@@ -31,7 +32,7 @@ export function App() {
             <Route path="/guide" element={<GuidePage />} />
             <Route path="/guide/:categoryId" element={<GuidePage />} />
             <Route path="/profile" element={<ProfilePage />} />
-            <Route path="/model" element={<ModelPage />} />
+            {SHOW_DEV_INFO && <Route path="/model" element={<ModelPage />} />}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>

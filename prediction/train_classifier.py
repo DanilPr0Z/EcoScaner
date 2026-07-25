@@ -21,22 +21,27 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import random
 import shutil
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
-#: Датасет с исходными снимками: папка на класс.
-DEFAULT_SOURCE = PROJECT_ROOT / "realwaste-main" / "RealWaste"
+#: Источники снимков: папка на класс. Одноимённые классы объединяются.
+#: RealWaste лежит отдельно от дополнительных классов — у него своя лицензия.
+DEFAULT_SOURCES = [
+    PROJECT_ROOT / "realwaste-main" / "RealWaste",
+    PROJECT_ROOT / "extra-classes",
+]
 #: Куда раскладывается train/val для ultralytics.
 DEFAULT_SPLIT_DIR = PROJECT_ROOT / "datasets" / "realwaste"
 #: Куда кладутся веса обученной модели.
 DEFAULT_WEIGHTS = PROJECT_ROOT / "prediction" / "waste_classifier.pt"
 
-#: Класс RealWaste → (категория справочника по-русски, название предмета).
+#: Класс датасета → (категория справочника по-русски, название предмета).
 #: Русские названия переводятся в id справочника в app/services/recognition/ml.py.
-REALWASTE_CLASSES_RU: dict[str, tuple[str, str]] = {
+WASTE_CLASSES_RU: dict[str, tuple[str, str]] = {
     "Cardboard": ("бумага", "картон"),
     "Paper": ("бумага", "бумага"),
     "Glass": ("стекло", "стекло"),
@@ -46,51 +51,144 @@ REALWASTE_CLASSES_RU: dict[str, tuple[str, str]] = {
     "Vegetation": ("органика", "растительные остатки"),
     "Textile Trash": ("прочее", "текстиль"),
     "Miscellaneous Trash": ("прочее", "смешанные отходы"),
+    # Особых отходов в RealWaste нет — класс приходит из extra-classes/.
+    "Battery": ("особые отходы", "батарейка"),
 }
 
 IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp"}
 
+#: Аугментация. Главное здесь — сильный разброс насыщенности и яркости:
+#: без него модель приучается решать по цвету, и матовая белая бутылка уезжает
+#: в «бумагу» просто потому, что светлая. Когда цвет на каждой эпохе разный,
+#: опереться остаётся только на форму и фактуру.
+#: Повороты, сдвиги и случайное затирание добавляют устойчивости к ракурсу
+#: и к тому, что предмет снят не целиком.
+AUGMENTATION = {
+    "hsv_h": 0.05,
+    "hsv_s": 0.9,
+    "hsv_v": 0.5,
+    "degrees": 20.0,
+    "translate": 0.15,
+    "scale": 0.6,
+    "fliplr": 0.5,
+    "erasing": 0.4,
+}
 
-def build_split(source: Path, target: Path, val_share: float, seed: int) -> dict[str, int]:
+
+def collect_classes(sources: list[Path]) -> dict[str, list[Path]]:
+    """Собирает снимки по классам из всех источников.
+
+    Одноимённые классы в разных источниках объединяются — так дополнительный
+    класс можно положить рядом, не трогая исходный датасет.
+    """
+    classes: dict[str, list[Path]] = {}
+    missing = [s for s in sources if not s.is_dir()]
+    if len(missing) == len(sources):
+        raise SystemExit(
+            "Не найден ни один источник снимков: "
+            + ", ".join(str(s) for s in sources)
+            + "\nСкачайте RealWaste и положите в realwaste-main/RealWaste."
+        )
+
+    for source in sources:
+        if not source.is_dir():
+            continue
+        for class_dir in sorted(p for p in source.iterdir() if p.is_dir()):
+            images = [
+                p for p in sorted(class_dir.iterdir())
+                if p.suffix.lower() in IMAGE_SUFFIXES
+            ]
+            if images:
+                classes.setdefault(class_dir.name, []).extend(images)
+    return classes
+
+
+def _fingerprint(path: Path) -> tuple[str, str]:
+    """Отпечатки снимка: точный (по содержимому) и перцептивный (по картинке).
+
+    Перцептивный ловит копии, пережатые или слегка изменённые: во внешнем
+    датасете такие есть — часть снимков получена аугментацией исходных.
+    """
+    from PIL import Image
+
+    data = path.read_bytes()
+    exact = hashlib.md5(data).hexdigest()
+
+    # 16×16 полутонов: достаточно подробно, чтобы не склеивать разные предметы.
+    with Image.open(path) as im:
+        small = im.convert("L").resize((16, 16), Image.Resampling.LANCZOS)
+    pixels = list(small.getdata())
+    mean = sum(pixels) / len(pixels)
+    perceptual = "".join("1" if p > mean else "0" for p in pixels)
+    return exact, perceptual
+
+
+def group_duplicates(images: list[Path]) -> list[list[Path]]:
+    """Объединяет копии одного снимка в группы, точные дубликаты выбрасывает.
+
+    Группа целиком уезжает либо в train, либо в val. Если копии одного кадра
+    разъедутся по разные стороны, валидационная точность окажется завышенной:
+    модель будет отвечать на то, что уже видела на обучении.
+    """
+    seen_exact: set[str] = set()
+    groups: dict[str, list[Path]] = {}
+
+    for path in images:
+        try:
+            exact, perceptual = _fingerprint(path)
+        except Exception:  # noqa: BLE001 - битый файл просто пропускаем
+            continue
+        if exact in seen_exact:
+            continue
+        seen_exact.add(exact)
+        groups.setdefault(perceptual, []).append(path)
+
+    return list(groups.values())
+
+
+def build_split(
+    sources: list[Path], target: Path, val_share: float, seed: int
+) -> dict[str, int]:
     """Раскладывает снимки на train/val симлинками.
 
-    Симлинки, а не копии: датасет весит 666 МБ, дублировать его незачем.
+    Симлинки, а не копии: датасеты весят сотни мегабайт, дублировать их незачем.
     Разбиение детерминировано seed — повторный запуск даёт тот же split,
     иначе метрики между запусками несравнимы.
+
+    Делим не отдельные снимки, а группы копий — см. group_duplicates.
     """
-    if not source.is_dir():
-        raise SystemExit(
-            f"Не найден датасет: {source}\n"
-            "Скачайте RealWaste и положите в realwaste-main/RealWaste."
-        )
+    classes = collect_classes(sources)
+    if not classes:
+        raise SystemExit("В источниках не нашлось изображений.")
 
     if target.exists():
         shutil.rmtree(target)
 
     counts: dict[str, int] = {}
+    dropped = 0
     rng = random.Random(seed)
 
-    for class_dir in sorted(p for p in source.iterdir() if p.is_dir()):
-        images = sorted(
-            p for p in class_dir.iterdir() if p.suffix.lower() in IMAGE_SUFFIXES
-        )
-        if not images:
-            continue
+    for class_name, images in sorted(classes.items()):
+        groups = group_duplicates(sorted(images))
+        dropped += len(images) - sum(len(g) for g in groups)
 
-        rng.shuffle(images)
-        cut = max(1, round(len(images) * val_share))
-        parts = {"val": images[:cut], "train": images[cut:]}
+        rng.shuffle(groups)
+        cut = max(1, round(len(groups) * val_share))
+        parts = {"val": groups[:cut], "train": groups[cut:]}
 
-        for split, files in parts.items():
-            split_dir = target / split / class_dir.name
+        kept = 0
+        for split, split_groups in parts.items():
+            split_dir = target / split / class_name
             split_dir.mkdir(parents=True, exist_ok=True)
-            for image in files:
-                (split_dir / image.name).symlink_to(image.resolve())
+            for group in split_groups:
+                for image in group:
+                    (split_dir / image.name).symlink_to(image.resolve())
+                    kept += 1
 
-        counts[class_dir.name] = len(images)
+        counts[class_name] = kept
 
-    if not counts:
-        raise SystemExit(f"В {source} не нашлось изображений.")
+    if dropped:
+        print(f"Выброшено точных дубликатов: {dropped}")
     return counts
 
 
@@ -106,7 +204,10 @@ def pick_device() -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Обучение классификатора отходов на RealWaste")
-    parser.add_argument("--source", type=Path, default=DEFAULT_SOURCE, help="папка с классами")
+    parser.add_argument(
+        "--source", type=Path, nargs="+", default=DEFAULT_SOURCES,
+        help="папки с классами (одноимённые классы объединяются)",
+    )
     parser.add_argument("--split-dir", type=Path, default=DEFAULT_SPLIT_DIR)
     parser.add_argument("--weights", type=Path, default=DEFAULT_WEIGHTS, help="куда сохранить модель")
     parser.add_argument("--model", default="yolov8s-cls.pt", help="базовая модель")
@@ -119,18 +220,18 @@ def main() -> None:
     args = parser.parse_args()
 
     print("Готовим разбиение…")
-    counts = build_split(args.source, args.split_dir, args.val_share, args.seed)
+    counts = build_split(list(args.source), args.split_dir, args.val_share, args.seed)
     total = sum(counts.values())
     print(f"Классов: {len(counts)}, снимков: {total}")
     for name, count in sorted(counts.items(), key=lambda kv: -kv[1]):
-        category, obj = REALWASTE_CLASSES_RU.get(name, ("?", "?"))
+        category, obj = WASTE_CLASSES_RU.get(name, ("?", "?"))
         print(f"  {name:22} {count:5}  → {category} / {obj}")
 
-    unmapped = set(counts) - set(REALWASTE_CLASSES_RU)
+    unmapped = set(counts) - set(WASTE_CLASSES_RU)
     if unmapped:
         raise SystemExit(
             f"В датасете есть классы без соответствия категории: {sorted(unmapped)}. "
-            "Добавьте их в REALWASTE_CLASSES_RU."
+            "Добавьте их в WASTE_CLASSES_RU."
         )
 
     device = args.device or pick_device()
@@ -151,6 +252,7 @@ def main() -> None:
         exist_ok=True,
         verbose=True,
         plots=False,
+        **AUGMENTATION,
     )
 
     best = PROJECT_ROOT / "runs" / "realwaste" / "weights" / "best.pt"

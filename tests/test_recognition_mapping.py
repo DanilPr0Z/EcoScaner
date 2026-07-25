@@ -43,10 +43,11 @@ def test_realwaste_covers_main_recyclables() -> None:
 
 
 def test_training_table_matches_dataset_classes() -> None:
-    """Таблица обучения описывает ровно те девять классов, что есть в RealWaste."""
-    from prediction.train_classifier import REALWASTE_CLASSES_RU
+    """Таблица обучения описывает ровно те классы, что лежат в источниках."""
+    from prediction.train_classifier import WASTE_CLASSES_RU
 
     expected = {
+        "Battery",
         "Cardboard",
         "Food Organics",
         "Glass",
@@ -57,4 +58,4 @@ def test_training_table_matches_dataset_classes() -> None:
         "Textile Trash",
         "Vegetation",
     }
-    assert set(REALWASTE_CLASSES_RU) == expected
+    assert set(WASTE_CLASSES_RU) == expected

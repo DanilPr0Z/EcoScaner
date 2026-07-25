@@ -27,10 +27,23 @@ export function ModelPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    api
-      .model()
-      .then(setInfo)
-      .catch((cause: Error) => setError(cause.message));
+    let timer: number | undefined;
+
+    const load = () => {
+      api
+        .model()
+        .then((next) => {
+          setInfo(next);
+          // Пока обучение идёт, цифры меняются каждую эпоху — подтягиваем их сами,
+          // чтобы не приходилось перезагружать страницу. Эпоха длится минуты,
+          // так что раз в полминуты более чем достаточно.
+          if (next.inProgress) timer = window.setTimeout(load, 30_000);
+        })
+        .catch((cause: Error) => setError(cause.message));
+    };
+
+    load();
+    return () => window.clearTimeout(timer);
   }, []);
 
   if (error) return <div className="notice notice--error">{error}</div>;
@@ -39,14 +52,34 @@ export function ModelPage() {
   if (!info.history.length) {
     return (
       <section className="shell page">
-        <h1 className="page__title">Модель</h1>
+        <h1 className="page__title">
+          Модель
+          {info.inProgress && (
+            <span className="model__badge">
+              <span className="status__dot status__dot--loading" />
+              обучение идёт
+            </span>
+          )}
+        </h1>
         <p className="page__lead">
-          {info.classifier === "stub"
-            ? "Сейчас работает заглушка распознавания — обучать было нечего."
-            : "Сводка обучения не найдена."}{" "}
-          Обучите модель командой{" "}
-          <code>python -m prediction.train_classifier</code> — здесь появятся
-          точность и потери по эпохам.
+          {info.inProgress ? (
+            <>
+              Первая эпоха ещё считается — цифры появятся, как только она
+              закончится. Страница обновится сама.
+            </>
+          ) : info.classifier === "stub" ? (
+            <>
+              Сейчас работает заглушка распознавания — обучать было нечего.
+              Обучите модель командой{" "}
+              <code>python -m prediction.train_classifier</code>.
+            </>
+          ) : (
+            <>
+              Сводка обучения не найдена. Обучите модель командой{" "}
+              <code>python -m prediction.train_classifier</code> — здесь появятся
+              точность и потери по эпохам.
+            </>
+          )}
         </p>
       </section>
     );
@@ -59,7 +92,15 @@ export function ModelPage() {
     <section className="shell page">
       <div className="profile__head">
         <div>
-          <h1 className="page__title">Модель</h1>
+          <h1 className="page__title">
+            Модель
+            {info.inProgress && (
+              <span className="model__badge">
+                <span className="status__dot status__dot--loading" />
+                обучение идёт · эпоха {info.epochs}
+              </span>
+            )}
+          </h1>
           <p className="profile__lead">
             {info.model} обучена на датасете {info.dataset}. Значения — те же, что
             пишет обучение: точность и потери на отложенной выборке.

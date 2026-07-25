@@ -26,7 +26,7 @@ from typing import Any
 from app.core.config import settings
 from app.services.recognition.base import Box, Prediction, TechRow
 from prediction.model_training import COCO_CLASSES_RU
-from prediction.train_classifier import REALWASTE_CLASSES_RU
+from prediction.train_classifier import WASTE_CLASSES_RU
 
 #: Названия категорий в моделях русские, в справочнике — id латиницей.
 _CATEGORY_ID_BY_RU: dict[str, str] = {
@@ -54,7 +54,7 @@ def _translate(table: dict[Any, tuple[str, str]], where: str) -> dict[Any, tuple
 
 
 #: Класс RealWaste → (id категории, название предмета).
-CLASS_TO_CATEGORY = _translate(REALWASTE_CLASSES_RU, "prediction/train_classifier.py")
+CLASS_TO_CATEGORY = _translate(WASTE_CLASSES_RU, "prediction/train_classifier.py")
 #: COCO-класс → (id категории, название предмета). Нужен только для уточнения названия.
 COCO_ID_TO_CATEGORY = _translate(COCO_CLASSES_RU, "prediction/model_training.py")
 
@@ -170,13 +170,9 @@ class MLClassifier:
             for index, score in zip(probs.top5[:3], probs.top5conf[:3])
         ]
 
-        # Детектор знает только классы COCO, а картон и текстиль в них не входят,
-        # поэтому на большинстве снимков рамки от него не будет. Как и в исходном
-        # прототипе, в этом случае показываем общую область анализа: классификатор
-        # смотрел на весь кадр.
-        boxes: list[Box] = [
-            Box(left=8, top=8, width=84, height=84, label="область анализа")
-        ]
+        # Рамка появляется, только когда детектор реально нашёл предмет.
+        # Общей «области анализа» на весь кадр по ТЗ быть не должно.
+        boxes: list[Box] = []
         detected = self._detect_box(picture)
         # Детектор берём в дело, только если он согласен с классификатором.
         # На снимках отходов он охотно выдаёт что-нибудь постороннее — на фото

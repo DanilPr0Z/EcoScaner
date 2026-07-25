@@ -1,10 +1,13 @@
 import { NavLink, useNavigate } from "react-router-dom";
 
+import { SHOW_DEV_INFO } from "../config";
+
 const LINKS = [
   { to: "/scan", label: "Сканер" },
   { to: "/guide", label: "Справочник" },
   { to: "/profile", label: "Профиль" },
-  { to: "/model", label: "Модель" },
+  // Служебная страница: показывается только при включённой отладке.
+  ...(SHOW_DEV_INFO ? [{ to: "/model", label: "Модель" }] : []),
 ];
 
 export function Header() {

@@ -192,6 +192,8 @@ export interface ModelInfo {
   /** "stub" — заглушка, "ml" — обученная модель. */
   classifier: string;
   trained: boolean;
+  /** Обучение идёт прямо сейчас — цифры меняются с каждой эпохой. */
+  inProgress: boolean;
   dataset?: string | null;
   model?: string | null;
   /** ISO 8601 */

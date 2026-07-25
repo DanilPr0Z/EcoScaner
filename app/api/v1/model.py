@@ -14,6 +14,12 @@ router = APIRouter(prefix="/model", tags=["model"])
 METRICS_PATH = Path(__file__).resolve().parents[3] / "prediction" / "metrics.json"
 
 
+def _training_classes() -> set[str]:
+    from prediction.train_classifier import WASTE_CLASSES_RU
+
+    return set(WASTE_CLASSES_RU)
+
+
 class EpochPoint(CamelModel):
     epoch: int
     train_loss: float | None = None
@@ -27,6 +33,8 @@ class ModelInfo(CamelModel):
 
     classifier: str
     trained: bool
+    #: Обучение прямо сейчас идёт — цифры будут меняться с каждой эпохой.
+    in_progress: bool = False
     dataset: str | None = None
     model: str | None = None
     trained_at: str | None = None
@@ -36,27 +44,71 @@ class ModelInfo(CamelModel):
     history: list[EpochPoint] = []
 
 
+def _run_state() -> tuple[dict | None, bool]:
+    """Сводка обучения и признак того, что оно идёт прямо сейчас.
+
+    results.csv обучение дописывает после каждой эпохи — благодаря этому за
+    прогрессом видно по ходу дела, а не только в конце. Пока считается первая
+    эпоха, файла ещё нет, но запуск уже начался: об этом говорит args.yaml,
+    который ultralytics пишет сразу. Такое состояние — «идёт, данных пока нет»,
+    а не «модель не обучалась».
+    """
+    from prediction.metrics import DEFAULT_RUN_DIR, build_metrics
+
+    started_marker = DEFAULT_RUN_DIR / "args.yaml"
+    results = DEFAULT_RUN_DIR / "results.csv"
+    if not started_marker.exists():
+        return None, False
+
+    # Готовая сводка появляется в самом конце. Если её нет или она старше
+    # текущего запуска — обучение ещё не закончилось.
+    finished = (
+        METRICS_PATH.exists()
+        and METRICS_PATH.stat().st_mtime >= started_marker.stat().st_mtime
+    )
+
+    if not results.exists():
+        return None, not finished
+
+    try:
+        return build_metrics(DEFAULT_RUN_DIR), not finished
+    except (FileNotFoundError, ValueError, OSError):
+        return None, not finished
+
+
 @router.get("", response_model=ModelInfo)
 async def model_info() -> ModelInfo:
     """Точность и потери по эпохам — то же, что пишет обучение в results.csv.
 
-    Если модель ещё не обучалась, отдаёт только текущий режим распознавания:
-    отсутствие сводки — не ошибка, на заглушке её и не должно быть.
+    Пока обучение идёт, цифры отдаются по ходу дела: страница показывает
+    прогресс, а не ждёт конца. Если модель ещё не обучалась, отдаётся только
+    текущий режим распознавания — отсутствие сводки не ошибка.
     """
     classifier = get_classifier().name
 
-    if not METRICS_PATH.exists():
-        return ModelInfo(classifier=classifier, trained=False)
+    live, in_progress = _run_state()
+    saved: dict = {}
+    if METRICS_PATH.exists():
+        try:
+            saved = json.loads(METRICS_PATH.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError) as cause:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Сводка обучения повреждена: {cause}",
+            ) from cause
 
-    try:
-        raw = json.loads(METRICS_PATH.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError) as cause:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Сводка обучения повреждена: {cause}",
-        ) from cause
+    if live is None and not saved:
+        return ModelInfo(classifier=classifier, trained=False, in_progress=in_progress)
+
+    if live is not None:
+        raw = live
+        # Список классов ведёт обучение, в results.csv его нет.
+        raw["classes"] = saved.get("classes") or sorted(_training_classes())
+    else:
+        raw = saved
 
     return ModelInfo(
+        in_progress=in_progress,
         classifier=classifier,
         trained=classifier != "stub",
         dataset=raw.get("dataset"),
