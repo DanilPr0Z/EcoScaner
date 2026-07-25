@@ -13,26 +13,36 @@
 
 ## Запуск
 
-Нужны два процесса. Бэкенд:
+```bash
+./start.sh
+```
+
+Скрипт поднимает оба сервера, а недостающие зависимости (venv, pip, npm) ставит
+сам при первом запуске. Ctrl+C останавливает всё разом.
+
+* приложение — http://localhost:5173
+* документация API — http://localhost:8000/docs
+
+Можно запустить что-то одно: `./start.sh back` или `./start.sh front`.
+
+<details>
+<summary>То же самое вручную, двумя терминалами</summary>
 
 ```bash
-python -m venv .venv && source .venv/bin/activate   # если окружения ещё нет
+python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn app.main:app --reload                       # http://localhost:8000
 ```
 
-Фронтенд, в другом терминале:
-
 ```bash
-cd frontend
-npm install
-npm run dev                                         # http://localhost:5173
+cd frontend && npm install && npm run dev           # http://localhost:5173
 ```
 
-Всё. При старте бэкенд создаёт недостающие таблицы и заполняет справочник,
+</details>
+
+При старте бэкенд создаёт недостающие таблицы и заполняет справочник,
 поэтому отдельный шаг с миграциями не нужен. Vite проксирует `/api` на FastAPI,
 так что CORS в разработке не участвует и ничего настраивать не надо.
-Документация API — http://localhost:8000/docs
 
 Если ведёте схему через Alembic, поставьте в `.env` `AUTO_CREATE_TABLES=false`
 и накатывайте миграции сами:
