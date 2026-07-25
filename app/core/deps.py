@@ -4,6 +4,7 @@ import re
 from typing import Annotated
 
 from fastapi import Depends, Header, HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Device, utcnow
@@ -39,7 +40,17 @@ async def get_device(
     if device is None:
         device = Device(id=x_device_id)
         session.add(device)
-        await session.flush()
+        try:
+            await session.flush()
+        except IntegrityError:
+            # Фронт шлёт запросы параллельно (профиль и история грузятся разом),
+            # поэтому при первом визите два из них могут одновременно не найти
+            # устройство и одновременно попытаться его создать. Кто-то один
+            # успевает первым — второй просто перечитывает запись.
+            await session.rollback()
+            device = await session.get(Device, x_device_id)
+            if device is None:
+                raise
 
     device.last_seen_at = utcnow()
     await session.commit()

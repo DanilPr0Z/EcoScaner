@@ -5,3 +5,7 @@ __pycache__/
 .pytest_cache/
 .env
 *.db
+# Служебные файлы SQLite в режиме WAL — под *.db не подпадают.
+*.db-wal
+*.db-shm
+*.db-journal
