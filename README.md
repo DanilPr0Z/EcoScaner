@@ -53,6 +53,17 @@ alembic upgrade head
 
 Настройки — в `.env` (см. `.env.example`), значения по умолчанию — в `app/core/config.py`.
 
+## Выкладка на сервер
+
+Два контейнера: FastAPI с моделью и nginx, отдающий собранный фронтенд.
+Пошаговая инструкция для Ubuntu 22.04 — [`deploy/README.md`](deploy/README.md).
+
+```bash
+cp deploy/.env.production.example .env.production
+scp prediction/waste_classifier.pt user@СЕРВЕР:~/EcoScaner/prediction/
+docker compose up -d --build
+```
+
 ## Тесты
 
 ```bash

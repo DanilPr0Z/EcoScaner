@@ -1,0 +1,38 @@
+# Без этого файла docker отправит демону 2.3 ГБ контекста: датасеты, окружения
+# и артефакты обучения. Ни то, ни другое в образе не нужно, а сборка из-за них
+# растягивается на минуты и может не пройти на маленьком VDS.
+
+# Данные и обучение
+realwaste-main/
+extra-classes/
+datasets/
+runs/
+testset/
+storage/
+*.pt
+
+# Окружения
+.venv/
+frontend/node_modules/
+frontend/dist/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Локальное
+.git/
+.idea/
+.claude/
+*.db
+*.db-wal
+*.db-shm
+.env
+.env.local
+.env.production
+frontend/.env.local
+
+# Документация и вспомогательное
+docs/
+tests/
+api.http
+start.sh

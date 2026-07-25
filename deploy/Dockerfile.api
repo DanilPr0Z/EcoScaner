@@ -1,0 +1,41 @@
+# Бэкенд: FastAPI и модель распознавания.
+#
+# Тяжёлая часть здесь — torch. Ставим его отдельной командой с индекса CPU-сборок:
+# обычный пакет тянет за собой CUDA почти на два гигабайта, а на VDS видеокарты нет
+# и всё это просто занимало бы место.
+
+FROM python:3.13-slim
+
+# libgl и libglib нужны opencv, который приходит вместе с ultralytics.
+# Без них импорт падает уже на старте, а не при первом запросе.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libgl1 libglib2.0-0 curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Зависимости отдельным слоем: код меняется часто, зависимости — редко,
+# и пересобирать полтора гигабайта на каждую правку незачем.
+COPY requirements.txt requirements-ml.txt ./
+RUN pip install --no-cache-dir -r requirements.txt \
+    && pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch torchvision \
+    && pip install --no-cache-dir -r requirements-ml.txt
+
+COPY app ./app
+COPY prediction ./prediction
+COPY alembic ./alembic
+COPY alembic.ini ./
+
+# Веса модели монтируются томом, а не копируются в образ: после каждого
+# переобучения достаточно положить новый файл и перезапустить контейнер.
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+COPY deploy/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+EXPOSE 8000
+HEALTHCHECK --interval=30s --timeout=5s --start-period=90s --retries=3 \
+    CMD curl -fsS http://localhost:8000/api/v1/health || exit 1
+
+ENTRYPOINT ["/entrypoint.sh"]

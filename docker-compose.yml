@@ -1,0 +1,36 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.api
+    restart: unless-stopped
+    env_file: .env.production
+    environment:
+      # В контейнере пути свои, поэтому задаём их здесь, а не в .env:
+      # так файл настроек остаётся одинаковым для сервера и для машины разработчика.
+      DATABASE_URL: sqlite+aiosqlite:////data/bingo.db
+      UPLOADS_DIR: /data/uploads
+      WASTE_CLASSIFIER_WEIGHTS: /models/waste_classifier.pt
+      AUTO_CREATE_TABLES: "false"
+    volumes:
+      # База и снимки пользователей переживают пересборку образа.
+      - bingo-data:/data
+      # Веса монтируются с хоста: после переобучения достаточно положить новый
+      # файл и перезапустить контейнер, пересобирать образ не нужно.
+      - ./prediction/waste_classifier.pt:/models/waste_classifier.pt:ro
+    expose:
+      - "8000"
+
+  web:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.web
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  bingo-data:
