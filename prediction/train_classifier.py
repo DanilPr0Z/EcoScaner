@@ -330,10 +330,17 @@ class CategoryAwareLoss:
     датасета перестаёт быть отдельной мишенью и работает в паре с соседом.
     """
 
-    def __init__(self, groups: list[list[int]], weights=None, strength: float = 1.0):  # noqa: ANN001
+    def __init__(  # noqa: ANN001
+        self,
+        groups: list[list[int]],
+        weights=None,
+        strength: float = 1.0,
+        smoothing: float = 0.0,
+    ):
         self.groups = groups
         self.weights = weights
         self.strength = strength
+        self.smoothing = smoothing
         self._category_of = None
 
     def __call__(self, preds, batch):  # noqa: ANN001
@@ -352,19 +359,32 @@ class CategoryAwareLoss:
             if self.weights is not None:
                 self.weights = self.weights.to(logits.device)
 
-        fine = F.cross_entropy(logits, target, weight=self.weights, reduction="mean")
+        fine = F.cross_entropy(
+            logits,
+            target,
+            weight=self.weights,
+            reduction="mean",
+            label_smoothing=self.smoothing,
+        )
 
         # Логит категории — логарифм суммы вероятностей её классов.
         coarse_logits = torch.stack(
             [logits[:, members].logsumexp(dim=1) for members in self.groups], dim=1
         )
-        coarse = F.cross_entropy(coarse_logits, self._category_of[target], reduction="mean")
+        coarse = F.cross_entropy(
+            coarse_logits,
+            self._category_of[target],
+            reduction="mean",
+            label_smoothing=self.smoothing,
+        )
 
         loss = fine + self.strength * coarse
         return loss, {"loss": loss.detach()}
 
 
-def attach_category_loss(model, strength: float, balance: float) -> None:
+def attach_category_loss(
+    model, strength: float, balance: float, smoothing: float = 0.0
+) -> None:
     """Заменяет функцию потерь на привязанную к категориям.
 
     Порядок классов берём не из наших словарей, а у самого обучения: папки
@@ -409,7 +429,9 @@ def attach_category_loss(model, strength: float, balance: float) -> None:
             )
             weights = raw / raw.mean()
 
-        unwrap_model(trainer.model).criterion = CategoryAwareLoss(groups, weights, strength)
+        unwrap_model(trainer.model).criterion = CategoryAwareLoss(
+            groups, weights, strength, smoothing
+        )
 
         readable = ", ".join(
             f"{key} ({len(grouped[key])})" for key in sorted(grouped)
@@ -577,6 +599,16 @@ def main() -> None:
         ),
     )
     parser.add_argument(
+        "--label-smoothing",
+        type=float,
+        default=0.0,
+        help=(
+            "сглаживание меток: вместо «это на 100%% бумага» модель учится на "
+            "«это бумага на 90%%, остальное поровну». Лечит уверенные ошибки — "
+            "живой случай: стакан определился металлом с уверенностью 89%%"
+        ),
+    )
+    parser.add_argument(
         "--full-precision",
         action="store_true",
         help=(
@@ -615,7 +647,9 @@ def main() -> None:
 
     model = YOLO(args.model)
     attach_extra_augmentation(model, args.grayscale, args.blur, args.rotate, args.jitter)
-    attach_category_loss(model, args.category_loss, args.balance)
+    attach_category_loss(
+        model, args.category_loss, args.balance, args.label_smoothing
+    )
     attach_category_checkpoint(model, PROJECT_ROOT / "runs" / "realwaste")
     attach_progress(model, PROJECT_ROOT / "runs" / "realwaste")
     model.train(
