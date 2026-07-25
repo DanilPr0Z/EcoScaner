@@ -1,0 +1,57 @@
+### Запросы к BinGo API (PyCharm / VS Code REST Client)
+@host = http://localhost:8000/api/v1
+@device = 11111111-2222-3333-4444-555555555555
+
+### Статус сервиса и активная модель
+GET {{host}}/health
+
+### Весь справочник: 7 категорий с предметами
+GET {{host}}/categories
+
+### Одна категория
+GET {{host}}/categories/plastic
+
+### Поиск по справочнику
+GET {{host}}/guide/search?q=бутылка
+
+### Сканирование фото
+POST {{host}}/scan
+X-Device-Id: {{device}}
+Content-Type: multipart/form-data; boundary=BinGoBoundary
+
+--BinGoBoundary
+Content-Disposition: form-data; name="file"; filename="photo.jpg"
+Content-Type: image/jpeg
+
+< ./ЭкоСканер_ план разработки (1)/uploads/IMG_695A37C75342-1.jpeg
+--BinGoBoundary--
+
+### Ручной выбор категории (когда распознавание не сработало)
+POST {{host}}/scan/manual
+X-Device-Id: {{device}}
+Content-Type: application/json
+
+{
+  "categoryId": "glass"
+}
+
+### Исправление категории уже сделанного скана
+POST {{host}}/scan/SCAN_ID_ОТСЮДА/correct
+X-Device-Id: {{device}}
+Content-Type: application/json
+
+{
+  "categoryId": "metal"
+}
+
+### Профиль: очки, серия, бейджи
+GET {{host}}/profile
+X-Device-Id: {{device}}
+
+### История сканирований
+GET {{host}}/profile/history?limit=12
+X-Device-Id: {{device}}
+
+### Очистить историю и очки
+DELETE {{host}}/profile/history
+X-Device-Id: {{device}}
