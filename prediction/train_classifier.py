@@ -57,20 +57,23 @@ WASTE_CLASSES_RU: dict[str, tuple[str, str]] = {
 
 IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp"}
 
-#: Аугментация. Главное здесь — сильный разброс насыщенности и яркости:
-#: без него модель приучается решать по цвету, и матовая белая бутылка уезжает
-#: в «бумагу» просто потому, что светлая. Когда цвет на каждой эпохе разный,
-#: опереться остаётся только на форму и фактуру.
-#: Повороты, сдвиги и случайное затирание добавляют устойчивости к ракурсу
-#: и к тому, что предмет снят не целиком.
+#: Аугментация ultralytics для классификации.
+#:
+#: Осторожно: классификация принимает НЕ все параметры. В classify_augmentations
+#: уходят только size, scale, hflip, vflip, erasing, auto_augment и hsv_*.
+#: Знакомые по детекции degrees, translate, perspective, shear молча
+#: игнорируются — задавать их бессмысленно.
+#:
+#: Более того, при заданном auto_augment ultralytics выбрасывает ColorJitter,
+#: так что hsv_* тоже не доходят. Всё, что нам действительно нужно, добавляется
+#: своими руками в attach_extra_augmentation.
 AUGMENTATION = {
-    "hsv_h": 0.05,
-    "hsv_s": 0.9,
-    "hsv_v": 0.5,
-    "degrees": 20.0,
-    "translate": 0.15,
-    "scale": 0.6,
+    # Предмет появляется в кадре и крупно, и мелко: прямо против случая,
+    # когда он занимает малую часть снимка и решает фон.
+    "scale": 0.35,
     "fliplr": 0.5,
+    # У мусора на земле нет верха и низа, переворот не портит смысл.
+    "flipud": 0.3,
     "erasing": 0.4,
 }
 
@@ -192,21 +195,26 @@ def build_split(
     return counts
 
 
-def attach_extra_augmentation(model, grayscale: float, blur: float) -> None:
-    """Добавляет обесцвечивание и размытие — их нет в наборе ultralytics.
+def attach_extra_augmentation(
+    model, grayscale: float, blur: float, rotate: float, jitter: float
+) -> None:
+    """Добавляет то, чего набор ultralytics для классификации не даёт.
 
-    Классификация в ultralytics умеет кадрирование, отражения, RandAugment,
-    цветовой джиттер и стирание. Ни обесцвечивания, ни размытия среди них нет,
-    поэтому подмешиваем свои прямо в набор преобразований датасета.
+    Поворот. Параметр degrees классификацией игнорируется, а поворот нужен:
+    предмет снимают под любым углом. RandAugment иногда поворачивает сам,
+    но лишь когда выберет этот оператор из полутора десятков.
 
-    Зачем именно эти два:
+    Цвет. При заданном auto_augment ultralytics выбрасывает ColorJitter,
+    поэтому hsv_* не доходят вовсе. А именно разброс насыщенности и яркости
+    бьёт по главной беде: пока цвет доступен, модель решает по нему, и матовая
+    белая бутылка уезжает в «бумагу» просто потому, что светлая.
 
-    * обесцвечивание бьёт по главной путанице — бумага и прозрачная бутылка
-      похожи по цвету, и пока цвет доступен, модель цепляется за него. Убирая
-      цвет у части снимков, мы заставляем её смотреть на форму и блики;
-    * размытие делает модель устойчивой к смазанным кадрам с телефона. Радиус
-      небольшой: сильное размытие съело бы фактуру, а она как раз и отличает
-      бумагу от пластика.
+    Обесцвечивание доводит эту мысль до конца: у части снимков цвета нет
+    совсем, опереться остаётся только на форму и фактуру.
+
+    Размытие делает модель терпимой к смазанным кадрам с телефона. Радиус
+    небольшой: сильное размытие съело бы фактуру, а она и отличает бумагу
+    от пластика.
     """
 
     def on_train_start(trainer) -> None:  # noqa: ANN001
@@ -216,6 +224,12 @@ def attach_extra_augmentation(model, grayscale: float, blur: float) -> None:
         operations = list(dataset.torch_transforms.transforms)
 
         extra = []
+        if rotate > 0:
+            extra.append(T.RandomRotation(rotate, expand=False))
+        if jitter > 0:
+            extra.append(
+                T.ColorJitter(brightness=jitter, contrast=jitter, saturation=jitter)
+            )
         if grayscale > 0:
             extra.append(T.RandomGrayscale(p=grayscale))
         if blur > 0:
@@ -225,14 +239,17 @@ def attach_extra_augmentation(model, grayscale: float, blur: float) -> None:
         if not extra:
             return
 
-        # Вставляем до перевода в тензор: обе операции работают с картинкой.
+        # Вставляем до перевода в тензор: все операции работают с картинкой.
         index = next(
             (i for i, op in enumerate(operations) if op.__class__.__name__ == "ToTensor"),
             len(operations),
         )
         operations[index:index] = extra
         dataset.torch_transforms = T.Compose(operations)
-        print(f"Добавлено: обесцвечивание p={grayscale}, размытие p={blur}")
+
+        print("Добавлено к аугментации:")
+        for op in extra:
+            print(f"  {str(op).splitlines()[0][:90]}")
 
     model.add_callback("on_train_start", on_train_start)
 
@@ -317,6 +334,18 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--device", default=None, help="cpu, mps или номер GPU")
     parser.add_argument(
+        "--rotate",
+        type=float,
+        default=20.0,
+        help="максимальный угол поворота в градусах (0 — выключить)",
+    )
+    parser.add_argument(
+        "--jitter",
+        type=float,
+        default=0.5,
+        help="разброс яркости, контраста и насыщенности (0 — выключить)",
+    )
+    parser.add_argument(
         "--grayscale",
         type=float,
         default=0.15,
@@ -362,7 +391,7 @@ def main() -> None:
     from ultralytics import YOLO
 
     model = YOLO(args.model)
-    attach_extra_augmentation(model, args.grayscale, args.blur)
+    attach_extra_augmentation(model, args.grayscale, args.blur, args.rotate, args.jitter)
     attach_progress(model, PROJECT_ROOT / "runs" / "realwaste")
     model.train(
         data=str(args.split_dir),
@@ -383,9 +412,15 @@ def main() -> None:
     if not best.exists():
         raise SystemExit(f"Обучение прошло, но веса не найдены: {best}")
 
-    args.weights.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(best, args.weights)
-    print(f"\nМодель сохранена: {args.weights.relative_to(PROJECT_ROOT)}")
+    weights = args.weights if args.weights.is_absolute() else PROJECT_ROOT / args.weights
+    weights.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(best, weights)
+    # relative_to падает на путях вне корня проекта, а --weights может быть любым.
+    try:
+        shown = weights.relative_to(PROJECT_ROOT)
+    except ValueError:
+        shown = weights
+    print(f"\nМодель сохранена: {shown}")
 
     # Сводка по эпохам — её отдаёт бэкенд и показывает интерфейс,
     # чтобы за точностью и потерями не нужно было лезть в логи обучения.

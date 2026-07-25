@@ -37,3 +37,4 @@ storage/
 
 # Модель-кандидат до проверки.
 prediction/waste_classifier.candidate.pt
+.cache/
