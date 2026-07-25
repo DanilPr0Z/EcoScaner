@@ -271,6 +271,17 @@ def main() -> None:
     parser.add_argument("--val-share", type=float, default=0.2)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--device", default=None, help="cpu, mps или номер GPU")
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=None,
+        help=(
+            "процессы загрузки данных. На MPS ultralytics принудительно ставит 0, "
+            "и загрузка идёт последовательно с вычислением: у нас это ~55 с из "
+            "219 с эпохи. Значение >0 возвращает параллельную загрузку — эпоха "
+            "укорачивается примерно на четверть"
+        ),
+    )
     args = parser.parse_args()
 
     print("Готовим разбиение…")

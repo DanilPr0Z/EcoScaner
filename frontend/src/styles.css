@@ -726,9 +726,29 @@ a:hover {
 
 .scan__grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(330px, 100%), 1fr));
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 24px;
   align-items: start;
+}
+
+/* Блок с фото занимает две строки — ровно столько, сколько карточка результата
+   и карточка подготовки вместе. Так левая и правая колонки заканчиваются на
+   одной линии, а карточка исправления начинается уже под ними. */
+.scan__grid--result .scan__photo {
+  grid-row: 1 / span 2;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+}
+
+.scan__grid--result .scan__photo .dropzone {
+  flex: 1;
+  min-height: 300px;
+  position: relative;
+}
+
+.scan__grid > *:not(.scan__photo) {
+  grid-column: 2;
 }
 
 .card {
@@ -796,6 +816,19 @@ a:hover {
   position: relative;
   width: 100%;
   line-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Обёртка ужимается ровно по картинке. Рамки позиционируются в процентах
+   от неё, поэтому при любом масштабе они остаются на своих местах. */
+.preview__frame {
+  position: relative;
+  display: inline-block;
+  line-height: 0;
+  max-width: 100%;
+  max-height: 100%;
 }
 
 .preview__img,
@@ -804,6 +837,23 @@ a:hover {
   height: auto;
   display: block;
   border-radius: 14px;
+}
+
+/* Когда блок с фото растянут под правую колонку, картинка выводится
+   из потока: иначе её собственная высота задавала бы высоту строк сетки,
+   и правые карточки расходились бы тем сильнее, чем вертикальнее снимок.
+   Вне потока высоту задаёт только правая колонка, а картинка вписывается. */
+.scan__grid--result .preview {
+  position: absolute;
+  inset: 0;
+  height: auto;
+}
+
+.scan__grid--result .preview__img {
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
 }
 
 .preview__video {
@@ -879,12 +929,6 @@ a:hover {
 
 .scan__reset:hover {
   color: var(--ink);
-}
-
-.scan__side {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
 }
 
 .placeholder {
@@ -2374,4 +2418,20 @@ a:hover {
   background: var(--accent);
   border-radius: 999px;
   transition: width 0.4s ease-out;
+}
+
+@media (max-width: 900px) {
+  /* Одна колонка: растягивать блок с фото не по чему, да и незачем —
+     карточки идут друг под другом. */
+  .scan__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .scan__grid--result .scan__photo {
+    grid-row: auto;
+  }
+
+  .scan__grid > *:not(.scan__photo) {
+    grid-column: 1;
+  }
 }

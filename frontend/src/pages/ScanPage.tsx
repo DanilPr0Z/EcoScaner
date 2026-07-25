@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ApiError, api, frameToFile } from "../api/client";
 import type { ScanResult } from "../api/types";
-import { inkOn, withAlpha } from "../lib/format";
+import { inkOn, isLightColor, withAlpha } from "../lib/format";
 import { SHOW_DEV_INFO } from "../config";
 import { useCategories } from "../state/CategoriesProvider";
 
@@ -173,8 +173,8 @@ export function ScanPage() {
         и не сохраняется.
       </p>
 
-      <div className="scan__grid">
-        <div className="card">
+      <div className={`scan__grid${result ? " scan__grid--result" : ""}`}>
+        <div className="card scan__photo">
           <div
             className={`dropzone${preview || cameraOn ? " dropzone--filled" : ""}${
               dragging ? " dropzone--dragging" : ""
@@ -205,6 +205,7 @@ export function ScanPage() {
 
             {preview && (
               <div className="preview">
+                <span className="preview__frame">
                 <img className="preview__img" src={preview} alt="Загруженное фото" />
                 {result?.boxes.map((box) => (
                   <div
@@ -229,6 +230,7 @@ export function ScanPage() {
                     </span>
                   </div>
                 ))}
+                </span>
                 {busy && (
                   <div className="preview__busy">
                     <span className="spinner" />
@@ -294,7 +296,7 @@ export function ScanPage() {
           />
         </div>
 
-        <div className="scan__side">
+        <>
           {!result && !error && (
             <div className="placeholder">
               <h3 className="placeholder__title">Результат появится здесь</h3>
@@ -313,7 +315,14 @@ export function ScanPage() {
 
           {result && category && (
             <>
-              <div className="result" style={{ background: category.color }}>
+              <div
+                className="result"
+                style={{
+                  background: category.color,
+                  // На тёмных баках тёмно-зелёный текст сливается с фоном.
+                  color: inkOn(category.color),
+                }}
+              >
                 <div className="result__head">
                   <div>
                     <span className="result__object">
@@ -321,14 +330,33 @@ export function ScanPage() {
                     </span>
                     <h2 className="result__cat">{category.name}</h2>
                   </div>
-                  <span className="result__conf">
+                  <span
+                    className="result__conf"
+                    style={{
+                      background: isLightColor(category.color)
+                        ? "rgba(49,87,44,.14)"
+                        : "rgba(255,255,255,.22)",
+                    }}
+                  >
                     {result.isManual
                       ? "вручную"
                       : `точность ${Math.round(result.confidence * 100)}%`}
                   </span>
                 </div>
-                <div className="result__bin">
-                  <span className="result__bin-dot" />
+                <div
+                  className="result__bin"
+                  style={{
+                    background: isLightColor(category.color)
+                      ? "rgba(255,255,255,.55)"
+                      : "rgba(0,0,0,.18)",
+                  }}
+                >
+                  <span
+                    className="result__bin-dot"
+                    style={{
+                      background: isLightColor(category.color) ? "#31572C" : "#FAF9F6",
+                    }}
+                  />
                   <span>{category.binLabel}</span>
                 </div>
                 <p className="result__hint">{category.hint}</p>
@@ -438,7 +466,7 @@ export function ScanPage() {
               </div>
             </div>
           )}
-        </div>
+        </>
       </div>
     </section>
   );
