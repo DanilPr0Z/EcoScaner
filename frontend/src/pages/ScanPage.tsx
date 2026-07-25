@@ -205,31 +205,10 @@ export function ScanPage() {
 
             {preview && (
               <div className="preview">
+                {/* Обёртка ужимается по картинке — на ней держится выравнивание
+                    блока с фото по высоте правой колонки. */}
                 <span className="preview__frame">
-                <img className="preview__img" src={preview} alt="Загруженное фото" />
-                {result?.boxes.map((box) => (
-                  <div
-                    className="preview__box"
-                    key={box.label}
-                    style={{
-                      left: `${box.left}%`,
-                      top: `${box.top}%`,
-                      width: `${box.width}%`,
-                      height: `${box.height}%`,
-                      border: `3px solid ${result.category.color}`,
-                    }}
-                  >
-                    <span
-                      className="preview__box-tag"
-                      style={{
-                        background: result.category.color,
-                        color: inkOn(result.category.color),
-                      }}
-                    >
-                      {box.label}
-                    </span>
-                  </div>
-                ))}
+                  <img className="preview__img" src={preview} alt="Загруженное фото" />
                 </span>
                 {busy && (
                   <div className="preview__busy">

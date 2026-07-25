@@ -2427,3 +2427,28 @@ a:hover {
   height: 100%;
   object-fit: cover;
 }
+
+/* Подпись к снимку предмета — внизу, поверх затемнения, чтобы читалась
+   на любой фотографии и не закрывала сам предмет. */
+.guide__preview-caption {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 42px 18px 16px;
+  background: linear-gradient(to top, rgba(20, 38, 18, 0.85), rgba(20, 38, 18, 0));
+  color: var(--bg);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.35;
+  text-align: left;
+}
+
+/* Снимок в карточке-примере на главной. */
+.hero__photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}

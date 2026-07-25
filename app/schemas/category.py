@@ -7,6 +7,8 @@ class CategoryItemOut(CamelModel):
     name: str
     is_accepted: bool
     note: str
+    #: Своя картинка предмета. None — интерфейс покажет картинку категории.
+    image_url: str | None = None
 
 
 class CategoryBase(CamelModel):

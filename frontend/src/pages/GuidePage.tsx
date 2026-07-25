@@ -312,13 +312,19 @@ export function GuidePage() {
                       borderColor: withAlpha(current.color, 0.25),
                     }}
                   >
-                    {current.imageUrl && (
+                    {/* Наведение показывает сам предмет; пока ничего не выбрано —
+                        общий снимок категории. */}
+                    {(picked?.imageUrl ?? current.imageUrl) && (
                       <img
                         className="guide__preview-photo"
-                        src={current.imageUrl}
-                        alt={current.name}
+                        key={picked?.imageUrl ?? current.imageUrl}
+                        src={picked?.imageUrl ?? current.imageUrl ?? ""}
+                        alt={picked?.name ?? current.name}
                         loading="lazy"
                       />
+                    )}
+                    {picked && (
+                      <span className="guide__preview-caption">{picked.name}</span>
                     )}
                   </div>
                 </div>

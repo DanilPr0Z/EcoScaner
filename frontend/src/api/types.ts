@@ -17,6 +17,8 @@ export interface CategoryItem {
   name: string;
   isAccepted: boolean;
   note: string;
+  /** Своя картинка предмета. null — показываем картинку категории. */
+  imageUrl?: string | null;
 }
 
 /** Категория без списка предметов — этого хватает карточке результата сканирования. */

@@ -10,9 +10,11 @@ router = APIRouter(tags=["guide"])
 
 
 def _with_image(category) -> CategoryOut:  # noqa: ANN001
-    """Категория плюс ссылка на её картинку."""
+    """Категория и её предметы вместе со ссылками на картинки."""
     out = CategoryOut.model_validate(category)
     out.image_url = guide.image_url(category.id)
+    for index, item in enumerate(out.items):
+        item.image_url = guide.item_image_url(category.id, index)
     return out
 
 

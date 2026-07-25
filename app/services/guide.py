@@ -19,6 +19,16 @@ def image_url(category_id: str) -> str | None:
     будет показывать битые картинки на машине, где скрипт не запускали.
     """
     return f"/static/guide/{category_id}.jpg" if (GUIDE_IMAGES / f"{category_id}.jpg").exists() else None
+
+
+def item_image_url(category_id: str, index: int) -> str | None:
+    """Ссылка на картинку конкретного предмета. Имя файла — категория и номер.
+
+    Номер берётся из порядка предметов в справочнике: он задан в seed_data
+    и не меняется, поэтому картинки не перепутаются местами.
+    """
+    name = f"{category_id}-{index}.jpg"
+    return f"/static/guide/items/{name}" if (GUIDE_IMAGES / "items" / name).exists() else None
 from app.services.text_search import score_text, tokenize
 
 #: Поля предмета и их вес. Совпадение в названии важнее, чем в примечании,

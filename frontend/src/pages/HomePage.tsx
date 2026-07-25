@@ -5,6 +5,11 @@ import { CategoryModal } from "../components/CategoryModal";
 import type { Category } from "../api/types";
 import { MAIN_CATEGORY_IDS, useCategories } from "../state/CategoriesProvider";
 
+/** «Жёлтый бак · пластик» → «жёлтый». */
+function binWord(binLabel: string): string {
+  return binLabel.split(" ")[0].toLowerCase();
+}
+
 const STEPS = [
   {
     n: "01",
@@ -13,8 +18,8 @@ const STEPS = [
   },
   {
     n: "02",
-    title: "Нейросеть находит его",
-    text: "Детектор выделяет объект рамкой, классификатор уточняет материал.",
+    title: "Нейросеть определяет материал",
+    text: "Классификатор обучен на снимках реальных отходов и различает десять видов.",
   },
   {
     n: "03",
@@ -31,6 +36,8 @@ export function HomePage() {
   const mainCategories = MAIN_CATEGORY_IDS.map((id) => byId[id]).filter(
     (category): category is Category => Boolean(category),
   );
+  // В карточке-примере показываем реальный снимок вместо нарисованного макета.
+  const hero = byId["plastic"];
 
   return (
     <>
@@ -62,13 +69,13 @@ export function HomePage() {
 
           <div className="hero__card">
             <div className="hero__frame">
+              {hero?.imageUrl && (
+                <img className="hero__photo" src={hero.imageUrl} alt={hero.name} />
+              )}
               <span className="hero__scanline" />
-              <span className="hero__box" />
-              <span className="hero__tag">пластик</span>
-              <span className="hero__frame-note">кадр с камеры</span>
             </div>
             <div className="hero__card-foot">
-              <span>Бак: жёлтый</span>
+              <span>{hero ? `Бак: ${binWord(hero.binLabel)}` : "Бак определяется по фото"}</span>
             </div>
           </div>
         </div>
