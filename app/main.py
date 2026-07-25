@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -19,7 +20,11 @@ from app.services.recognition.registry import get_classifier
 async def lifespan(app: FastAPI):
     # Проверяем модель сразу: неверный CLASSIFIER должен ронять приложение на старте,
     # а не на первом сканировании.
-    get_classifier()
+    classifier = get_classifier()
+    # Веса YOLO грузятся секунды — прогреваем заранее, иначе первый пользователь ждёт.
+    warmup = getattr(classifier, "warmup", None)
+    if callable(warmup):
+        await asyncio.to_thread(warmup)
 
     if settings.auto_create_tables:
         async with engine.begin() as conn:

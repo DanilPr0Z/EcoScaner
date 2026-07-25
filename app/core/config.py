@@ -27,8 +27,13 @@ class Settings(BaseSettings):
     auto_create_tables: bool = True
 
     #: Какая реализация Classifier используется: "stub" — заглушка,
-    #: "ml" — реальная модель (появится позже, см. app/services/recognition/registry.py).
+    #: "ml" — YOLOv8 (см. app/services/recognition/registry.py).
     classifier: str = "stub"
+
+    #: Веса YOLO. Файла нет — ultralytics скачает при первом запуске (~87 МБ).
+    yolo_weights: str = "yolov8l.pt"
+    #: Порог уверенности детектора — ниже него объекты отбрасываются.
+    yolo_confidence: float = 0.5
 
     #: Ограничения на загружаемое фото. Файл не сохраняется — только читается в память.
     max_upload_bytes: int = 10 * 1024 * 1024

@@ -1,7 +1,7 @@
-def predict_yolo(image_path):
-    from ultralytics import YOLO
-
-    coco_classes_ru = {
+# Вынесено из функции на уровень модуля, чтобы бэкенд мог переиспользовать
+# ту же таблицу и не заводить вторую копию, которая разъедется с этой.
+# Логика predict_yolo не изменилась.
+COCO_CLASSES_RU = {
         39: ("пластик", "пластиковая бутылка"),
         40: ("стекло", "стеклянный бокал"),
         41: ("пластик", "стакан"),
@@ -24,8 +24,14 @@ def predict_yolo(image_path):
         75: ("стекло", "ваза"),
         76: ("металл", "ножницы"),
         77: ("пластик", "игрушка"),
-        79: ("пластик", "зубная щетка")
-    }
+    79: ("пластик", "зубная щетка"),
+}
+
+
+def predict_yolo(image_path):
+    from ultralytics import YOLO
+
+    coco_classes_ru = COCO_CLASSES_RU
 
     model_path = 'yolov8l.pt'
 
