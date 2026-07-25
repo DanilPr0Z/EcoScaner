@@ -369,6 +369,7 @@ export function ScanPage() {
                 </div>
               </div>
 
+              {SHOW_DEV_INFO && (
               <div className="card" style={{ padding: 22 }}>
                 <span className="eyebrow">Модель ошиблась? Исправьте</span>
                 <div className="chips">
@@ -419,16 +420,11 @@ export function ScanPage() {
                   </p>
                 )}
 
-                <div
-                  style={{
-                    marginTop: 18,
-                    fontSize: 14,
-                    color: "var(--muted)",
-                    fontWeight: 600,
-                  }}
-                >
-                  +{result.pointsAwarded} эко-очков · всего {result.totalPoints}
-                </div>
+              </div>
+              )}
+
+              <div className="scan__points">
+                +{result.pointsAwarded} эко-очков · всего {result.totalPoints}
               </div>
             </>
           )}

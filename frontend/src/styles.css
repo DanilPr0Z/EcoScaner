@@ -2464,3 +2464,11 @@ a:hover {
   line-height: 1.5;
   color: var(--ink-soft);
 }
+
+/* Очки за сканирование — отдельной строкой под карточками, а не внутри
+   служебного блока, который в проде скрыт. */
+.scan__points {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted);
+}
