@@ -23,10 +23,32 @@ import io
 from pathlib import Path
 from typing import Any
 
+from PIL import ImageOps
+
 from app.core.config import settings
 from app.services.recognition.base import Box, Prediction, TechRow
 from prediction.model_training import COCO_CLASSES_RU
 from prediction.train_classifier import WASTE_CLASSES_RU
+
+#: Читать ли HEIC. Формат снимков айфона по умолчанию: с камеры в приложении
+#: кадр уходит уже как JPEG, а вот готовое фото из галереи может приехать
+#: нетронутым. Регистрируем один раз и лениво — pillow-heif нужен только при
+#: включённом распознавании, и тянуть его в базовую установку незачем.
+_heic_ready = False
+
+
+def _enable_heic() -> None:
+    global _heic_ready
+    if _heic_ready:
+        return
+    _heic_ready = True
+    try:
+        import pillow_heif
+
+        pillow_heif.register_heif_opener()
+    except ImportError:  # pragma: no cover - без него просто не будет HEIC
+        pass
+
 
 #: Названия категорий в моделях русские, в справочнике — id латиницей.
 _CATEGORY_ID_BY_RU: dict[str, str] = {
@@ -183,8 +205,14 @@ class MLClassifier:
     def _run(self, image: bytes) -> Prediction | None:
         from PIL import Image, UnidentifiedImageError
 
+        _enable_heic()
+
         try:
             picture = Image.open(io.BytesIO(image)).convert("RGB")
+            # Айфон пишет ориентацию в EXIF, а не разворачивает сам кадр:
+            # снятое вертикально приезжает лежащим на боку. Без разворота
+            # модель видит предмет повёрнутым на 90°.
+            picture = ImageOps.exif_transpose(picture) or picture
         except (UnidentifiedImageError, OSError):
             return None
 

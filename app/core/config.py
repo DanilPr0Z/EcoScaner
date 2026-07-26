@@ -51,7 +51,18 @@ class Settings(BaseSettings):
 
     #: Ограничения на загружаемое фото.
     max_upload_bytes: int = 10 * 1024 * 1024
-    allowed_content_types: tuple[str, ...] = ("image/jpeg", "image/png", "image/webp")
+    #: HEIC здесь не для полноты списка: это формат снимков айфона
+    #: по умолчанию. С камеры в приложении кадр уходит уже как JPEG — его
+    #: рисует холст, — а вот готовое фото из галереи может приехать как есть.
+    #: Обычно Safari пережимает его сам, но не всегда: через «Файлы»
+    #: или «Поделиться» оно уходит нетронутым и получало отказ 415.
+    allowed_content_types: tuple[str, ...] = (
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+        "image/heic",
+        "image/heif",
+    )
 
     #: Источники, которым разрешён CORS (dev-серверы Vite / CRA).
     cors_origins: tuple[str, ...] = (
