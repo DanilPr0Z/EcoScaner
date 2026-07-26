@@ -91,7 +91,14 @@ export function ModelPage() {
               {info.progress.batch} из {info.progress.batches}
             </span>
             <span className="progress__loss">
-              средние потери по батчам: <b>{info.progress.meanLoss.toFixed(4)}</b>
+              потери с начала эпохи: <b>{info.progress.meanLoss.toFixed(4)}</b>
+              {/*
+                Это бегущее среднее внутри текущей эпохи: ultralytics
+                обнуляет его на каждой эпохе и пересчитывает после каждой
+                порции. Начало эпохи всегда тяжелее конца — модель ещё
+                не поправилась, — поэтому число закономерно выше итогового
+                и сравнивать его с потерями прошлой эпохи нельзя.
+              */}
             </span>
           </div>
           <div className="progress__bar">
@@ -162,7 +169,14 @@ export function ModelPage() {
               {info.progress.batch} из {info.progress.batches}
             </span>
             <span className="progress__loss">
-              средние потери по батчам: <b>{info.progress.meanLoss.toFixed(4)}</b>
+              потери с начала эпохи: <b>{info.progress.meanLoss.toFixed(4)}</b>
+              {/*
+                Это бегущее среднее внутри текущей эпохи: ultralytics
+                обнуляет его на каждой эпохе и пересчитывает после каждой
+                порции. Начало эпохи всегда тяжелее конца — модель ещё
+                не поправилась, — поэтому число закономерно выше итогового
+                и сравнивать его с потерями прошлой эпохи нельзя.
+              */}
             </span>
           </div>
           <div className="progress__bar">
