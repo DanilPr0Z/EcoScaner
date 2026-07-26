@@ -2376,6 +2376,13 @@ a:hover {
   color: var(--ink);
 }
 
+/* Опора для живой цифры — итог прошлой эпохи. Тише основного значения:
+   это справка для сравнения, а не второй равноправный показатель. */
+.progress__previous {
+  color: var(--ink-muted, var(--ink-soft));
+  opacity: 0.75;
+}
+
 .progress__bar {
   height: 8px;
   margin-top: 14px;
