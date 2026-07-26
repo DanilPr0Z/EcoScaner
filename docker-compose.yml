@@ -10,10 +10,13 @@ services:
       # так файл настроек остаётся одинаковым для сервера и для машины разработчика.
       DATABASE_URL: sqlite+aiosqlite:////data/bingo.db
       UPLOADS_DIR: /data/uploads
-      # Две модели через запятую: ответы усредняются. Они ошибаются
-      # на разных снимках, поэтому вместе точнее любой из них — на
-      # независимом тесте 93.5% против 92.5% и 92.3% поодиночке.
-      WASTE_CLASSIFIER_WEIGHTS: /models/waste_classifier.pt,/models/waste_classifier.s.pt
+      # Три модели через запятую: ответы усредняются равными долями.
+      # Они сильны в непересекающихся местах — боевая почти безошибочна
+      # на органике и прочем, 8m на 288 пикселях берёт металл, пластик
+      # и стекло. На независимом тесте из 1200 чужих снимков смесь даёт
+      # 93.9% против 92.5% у боевой, а худшая категория поднимается
+      # с 81.3 до 90.0. Цена — 41 мс на снимок вместо 10.
+      WASTE_CLASSIFIER_WEIGHTS: /models/waste_classifier.pt,/models/waste_classifier.s.pt,/models/waste_classifier.m288.pt
       AUTO_CREATE_TABLES: "false"
     volumes:
       # База и снимки пользователей переживают пересборку образа.
@@ -22,6 +25,7 @@ services:
       # файл и перезапустить контейнер, пересобирать образ не нужно.
       - ./prediction/waste_classifier.pt:/models/waste_classifier.pt:ro
       - ./prediction/waste_classifier.s.pt:/models/waste_classifier.s.pt:ro
+      - ./prediction/waste_classifier.m288.pt:/models/waste_classifier.m288.pt:ro
     expose:
       - "8000"
 
