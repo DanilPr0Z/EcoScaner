@@ -30,6 +30,7 @@ def main() -> None:
     parser.add_argument("--jitter", type=float, default=0.5)
     parser.add_argument("--grayscale", type=float, default=0.15)
     parser.add_argument("--blur", type=float, default=0.15)
+    parser.add_argument("--quarter-turn", type=float, default=0.0)
     parser.add_argument("--category-loss", type=float, default=0.0)
     args = parser.parse_args()
 
@@ -38,6 +39,7 @@ def main() -> None:
     from prediction.train_classifier import (
         AUGMENTATION,
         CategoryAwareLoss,
+        RandomQuarterTurn,
         attach_extra_augmentation,
         enable_half_precision,
         pick_device,
@@ -104,7 +106,25 @@ def main() -> None:
             self.callbacks.setdefault(event, []).append(fn)
 
     model = Fake()
-    attach_extra_augmentation(model, args.grayscale, args.blur, args.rotate, args.jitter)
+    attach_extra_augmentation(
+        model, args.grayscale, args.blur, args.rotate, args.jitter, args.quarter_turn
+    )
+    if args.quarter_turn > 0:
+        # Проверяем не наличие класса, а его поведение: доля повёрнутых кадров
+        # должна сойтись с заданной. Поворот на 180° размер не меняет, поэтому
+        # по смене размера видно ровно две трети применений.
+        from PIL import Image as _Image
+
+        turn = RandomQuarterTurn(args.quarter_turn)
+        sample = _Image.new("RGB", (400, 200))
+        turned = sum(turn(sample).size == (200, 400) for _ in range(2000)) / 2000
+        expected = args.quarter_turn * 2 / 3
+        everything &= check(
+            "поворот на четверть оборота работает",
+            abs(turned - expected) < 0.05,
+            f"повёрнуто {turned:.2f}, ожидалось {expected:.2f}",
+        )
+
     everything &= check(
         "обработчик своих аугментаций навешен",
         bool(model.callbacks.get("on_train_start")),

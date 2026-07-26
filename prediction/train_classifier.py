@@ -195,8 +195,50 @@ def build_split(
     return counts
 
 
+class RandomQuarterTurn:
+    """Поворот на 0, 90, 180 или 270 градусов — с заданной вероятностью.
+
+    Отдельно от RandomRotation, потому что решает другую задачу. Тот вертит
+    на ±20° и учит терпимости к наклону; этот готовит к кадру, лежащему
+    на боку целиком.
+
+    Нужен по измеренной причине: на повёрнутом на прямой угол снимке точность
+    падает с 92.50% до 82.08%, то есть на 10.4 пункта. Айфон пишет ориентацию
+    в EXIF, и теперь мы её применяем, но снимок может прийти боком и без
+    метаданных — после пересохранения, из мессенджера, со скриншота.
+
+    torchvision такого преобразования не даёт: RandomRotation с углом 90
+    вертит на любой угол между -90 и 90, а нам нужны ровно четверти оборота,
+    иначе появятся пустые углы и картинка потеряет края.
+    """
+
+    def __init__(self, probability: float) -> None:
+        self.probability = probability
+
+    def __call__(self, image):  # noqa: ANN001
+        import random
+
+        from PIL import Image
+
+        if random.random() >= self.probability:
+            return image
+        return image.transpose(
+            random.choice(
+                (Image.ROTATE_90, Image.ROTATE_180, Image.ROTATE_270)
+            )
+        )
+
+    def __repr__(self) -> str:
+        return f"RandomQuarterTurn(p={self.probability})"
+
+
 def attach_extra_augmentation(
-    model, grayscale: float, blur: float, rotate: float, jitter: float
+    model,
+    grayscale: float,
+    blur: float,
+    rotate: float,
+    jitter: float,
+    quarter_turn: float = 0.0,
 ) -> None:
     """Добавляет то, чего набор ultralytics для классификации не даёт.
 
@@ -224,6 +266,11 @@ def attach_extra_augmentation(
         operations = list(dataset.torch_transforms.transforms)
 
         extra = []
+        # Четверть оборота — первой: остальные операции должны применяться
+        # к уже повёрнутому кадру, иначе размытие и цвет лягут на другую
+        # картинку, чем увидит модель.
+        if quarter_turn > 0:
+            extra.append(RandomQuarterTurn(quarter_turn))
         if rotate > 0:
             extra.append(T.RandomRotation(rotate, expand=False))
         if jitter > 0:
@@ -598,6 +645,16 @@ def main() -> None:
         ),
     )
     parser.add_argument(
+        "--quarter-turn",
+        type=float,
+        default=0.0,
+        help=(
+            "вероятность повернуть снимок на 90, 180 или 270 градусов. "
+            "На повёрнутом кадре точность падает на 10.4 пункта, а прийти он "
+            "может боком и без метаданных — из мессенджера, со скриншота"
+        ),
+    )
+    parser.add_argument(
         "--category-loss",
         type=float,
         default=1.0,
@@ -663,7 +720,9 @@ def main() -> None:
     from ultralytics import YOLO
 
     model = YOLO(args.model)
-    attach_extra_augmentation(model, args.grayscale, args.blur, args.rotate, args.jitter)
+    attach_extra_augmentation(
+        model, args.grayscale, args.blur, args.rotate, args.jitter, args.quarter_turn
+    )
     attach_category_loss(
         model, args.category_loss, args.balance, args.label_smoothing
     )
